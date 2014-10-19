@@ -3,5 +3,5 @@ tmux new-session -A -s probprog \; \
     new-window -n 'server' \; \
     send-keys 'cd ~/apps/Probabilistic-Programming-and-Bayesian-Methods-for-Hackers; ipython notebook' C-m \; \
     new-window -n 'pydoc' \; \
-    send-keys 'pydoc -p 8080'
+    send-keys 'pydoc -p 8080' C-m \; \
     select-window -t 1
