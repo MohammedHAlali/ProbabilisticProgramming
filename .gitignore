@@ -1,3 +1,5 @@
 *.pyc
 *.RData
 *.Rhistory
+*.cpp
+*.x

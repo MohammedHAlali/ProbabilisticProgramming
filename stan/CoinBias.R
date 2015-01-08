@@ -23,6 +23,7 @@ fit <- sampling(dso,
             warmup=200,
             thin=1
             )
+print(fit)
 
 str(fit, max.level=2) 
 
