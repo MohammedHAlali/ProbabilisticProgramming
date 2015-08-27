@@ -40,7 +40,7 @@ functions { # {{{
       return Sigma;
     }
   }
-  matrix GenCovWW( vector w1, vector w2, real rho_sq, real eta_sq, real sigma_sq ) {
+  matrix GenCovWW( vector w1, vector w2, real rho_sq, real eta_sq ) {
     int N1;
     int N2;
     N1 <- num_elements( w1 );
@@ -72,25 +72,29 @@ data { #{{{
 } #}}}
 
 transformed data { #{{{
-
-  // Sigma[i,j] <- exp( -0.5 * rho_sq * pow( x[i] - x[j], 2)) * eta_sq;
-  // Sigma[i,j] <- exp( -0.5 * rho_sq * pow( x[i] - x[j], 2)) * eta_sq * (x[i] - x[j]) * -rho_sq;
-  // Sigma[i,j] <- exp( -0.5 * rho_sq * pow( x[i] - x[j], 2)) * eta_sq * (1 - rho_sq*(x[i] - x[j])^2) * rho_sq;
-  
-  vector[N2] mu;
-  matrix[N2,N2] Ly;
-  matrix[N2,N2] Lw;
+  vector[2*N2] mu;
+  matrix[2*N2,2*N2] L;
 
   {
-    matrix[N1,N1] Sigma; // cov(w,w)
-    matrix[N2,N2] Omega; // cov(y,y)
-    matrix[N1,N2] K;     // cov(w,y)
-    matrix[N2,N1] K_transpose_div_Sigma;
-    matrix[N2,N2] Tau;
+    matrix[N1,N1] Sigma;   // cov(w,w)
+    matrix[N2,N2] Omega11; // kyy(x1,x1)
+    matrix[N2,N2] Omega22; // kww(x2,x2)
+    matrix[N2,N2] Omega12; // kwy(x2,x2)
+    matrix[N1,2*N2] K;     // [ kwy(x1,x2) , kww(x1,x2) ]
+    matrix[2*N2,N1] K_transpose_div_Sigma;
+    matrix[2*N2,2*N2] Tau;
+    matrix[2*N2,2*N2] Omega; // Omega = [[Omega11, Omega12], [Omega12', Omega22]]
 
-    Sigma <- GenCovW( x1, rho_sq, eta_sq, sigma_sq_w );
-    Omega <- GenCovYY( x2, rho_sq, eta_sq, sigma_sq_y );
-    K     <- GenCovWY( x1, x2, rho_sq, eta_sq);
+    Sigma   <- GenCovW(  x1, rho_sq, eta_sq, sigma_sq_w );
+    Omega11 <- GenCovYY( x2, rho_sq, eta_sq, sigma_sq_y );
+    Omega22 <- GenCovW(  x2, rho_sq, eta_sq, sigma_sq_w );
+    Omega12 <- GenCovWY( x2, x2, rho_sq, eta_sq);
+    Omega <- append_row( append_col( Omega11 , Omega12 )
+                       , append_col( Omega12', Omega22 ));
+
+
+    K <- append_col( GenCovWY( x1, x2, rho_sq, eta_sq)
+                   , GenCovWW( x1, x2, rho_sq, eta_sq) );
 
     K_transpose_div_Sigma <- K' / Sigma;
     mu <- K_transpose_div_Sigma * y1;
@@ -99,34 +103,12 @@ transformed data { #{{{
       for (j in (i+1):N2)
         Tau[i,j] <- Tau[j,i];
 
-    Ly <- cholesky_decompose(Tau);
-  }
-
-  {
-    matrix[N1,N1] Sigma; // cov(w,w)
-    matrix[N2,N2] Omega; // cov(y,y)
-    matrix[N1,N2] K;     // cov(w,y)
-    matrix[N2,N1] K_transpose_div_Sigma;
-    matrix[N2,N2] Tau;
-
-    Sigma <- GenCovW( x1, rho_sq, eta_sq, sigma_sq_w );
-    Omega <- GenCovW( x2, rho_sq, eta_sq, sigma_sq_w );
-    K     <- GenCovWW( x1, x2, rho_sq, eta_sq, sigma_sq_w );
-
-    K_transpose_div_Sigma <- K' / Sigma;
-    mu <- K_transpose_div_Sigma * y1;
-    Tau <- Omega - K_transpose_div_Sigma * K;
-    for (i in 1:N2)
-      for (j in (i+1):N2)
-        Tau[i,j] <- Tau[j,i];
-
-    Lw <- cholesky_decompose(Tau);
+    L <- cholesky_decompose(Tau);
   }
 } #}}}
 
 parameters { #{{{
-  vector[N2] z_y;
-  vector[N2] z_w;
+  vector[2*N2] z;
 } #}}}
 
 transformed parameters { #{{{
@@ -134,13 +116,14 @@ transformed parameters { #{{{
 } #}}}
 
 model { #{{{
-  z_y ~ normal(0,1);
-  z_w ~ normal(0,1);
+  z ~ normal(0,1);
 } #}}}
 
 generated quantities { #{{{
-  vector[N2] y2;    // y2 ~ multi_normal(mu, Tau);
-  vector[N2] w2;    // w2 ~ multi_normal(mu, Tau);
-  y2 <- mu + Ly * z_y;
-  w2 <- mu + Lw * z_w;
+  vector[N2] y;
+  vector[N2] w;
+  vector[2*N2] y2;    // y2 ~ multi_normal(mu, Tau);
+  y2 <- mu + L * z;
+  y <- head(y2,N2);
+  w <- tail(y2,N2);
 } #}}}
