@@ -2,9 +2,9 @@ library("rstan")
 library("ggplot2")
 
 s <- 1e-1
-x <- (-50:50) / 10
+x <- (0:100) / 100
 N <- length(x)
-rho_sq <- 1e0 
+rho_sq <- 1e-1
 eta_sq <- 1e0
 plot( x, eta_sq*exp(-rho_sq*x^2) )
 lines( x, rep(s, length(x)) )

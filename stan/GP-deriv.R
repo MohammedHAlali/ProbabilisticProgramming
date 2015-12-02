@@ -100,14 +100,14 @@ qplot( x=datalist$x1, y=datalist$y1, geom="point") +
 
 datalist <- list( 
     x1=runif(100)
-  , x2=seq(-2,2,0.1)
-  , rho_sq=1e-1
-  , eta_sq=1e0
+  , x2=seq(0,1,0.05)
+  , rho_sq=1e0
+  , eta_sq=1e1
   , sigma_sq_y=1e-6
-  , sigma_sq_w=1e-4
+  , sigma_sq_w=1e-2
 )
 datalist$w1 <- (datalist$x1 - 0.5) + 
-  rnorm
+  rnorm(length(datalist$x1), mean=0, sd=0.5)
 datalist$N1 <- length(datalist$x1)
 datalist$N2 <- length(datalist$x2)
 df.x2 <- data.frame( x2=datalist$x2, idx=1:length(datalist$x2))
@@ -119,7 +119,8 @@ samps <- stan( "GP-deriv-large.stan"
               , chains=32
               , iter=iter+20
               , warmup=iter 
-              , open_progress=FALSE )
+              , open_progress=FALSE
+              , cores=4 )
 
 print(samps)
 
