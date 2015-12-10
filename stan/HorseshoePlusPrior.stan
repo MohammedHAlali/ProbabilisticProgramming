@@ -26,7 +26,7 @@ transformed parameters { #{{{
 model { #{{{
   w_raw ~ normal(0,1); // implies w ~ normal(0,tau)
   lambda ~ cauchy( 0, 1 ); // local shrinkage
-  eta ~ cauchy(0,1); // global shrinkage
+  eta ~ cauchy(0,1); // local shrinkage
   tau ~ cauchy(0,1); // global shrinkage
   // tau <- p_n / n; // empirical Bayes estimator
 } #}}}
