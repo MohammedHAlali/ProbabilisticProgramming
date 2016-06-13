@@ -49,7 +49,6 @@ df[[:hm,:mean]]
 
 df[[:v,:var]]
 
-
 end # Ex34MonteCarloIntegration }}}
 
 
