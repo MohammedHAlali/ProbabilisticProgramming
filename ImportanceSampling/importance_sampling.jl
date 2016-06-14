@@ -51,7 +51,6 @@ df[[:v,:var]]
 
 end # Ex34MonteCarloIntegration }}}
 
-
 module iSampling #{{{
 using Distributions
 using DataFrames
@@ -61,9 +60,6 @@ ndist = Normal(0,100)
 r = rand( ndist, 100 )
 
 df = DataFrame(r=r)
-
-
-
 
 end # iSampling }}}
 

@@ -72,3 +72,50 @@ ggplot(df.iter) +
   ylim(2e-2*c(-1,1)+0.15)
 
 # }}}
+
+# Ex311SmallTailProb {{{
+
+j2r('include("./Ex311SmallTailProb.jl")')
+Y <- j2r('Ex311SmallTailProb.Y')
+w <- j2r('Ex311SmallTailProb.w')
+M <- length(w)
+mu <- mean(w)
+se <- sd(w) / sqrt(M)
+
+df.vals <- data.frame(
+                 mu = mean(w),
+                 se = sd(w) / sqrt(M),
+                 q1 = mu-se,
+                 q2 = mu+se,
+                 trueProb = 0.000003377
+                 )
+print(df.vals)
+
+qplot(Y, geom="histogram")
+
+qplot(w, geom="histogram", bins=300) +
+  geom_vline( xintercept=mu, size=1, color='red', alpha=0.5)+
+  geom_vline( xintercept=mu+10*se, size=1, color='red', alpha=0.5)+
+  geom_vline( xintercept=mu-10*se, size=1, color='red', alpha=0.5)+
+  geom_vline( xintercept=trueProb, size=1, color='green', alpha=0.9)
+
+mean.m <- j2r('Ex311SmallTailProb.mean_m')
+var.m  <- j2r('Ex311SmallTailProb.var_m')
+
+df <- data_frame(
+  M = 1:M
+, mean = mean.m
+, var = var.m
+, se = sqrt(var.m) /  sqrt(M)
+, q1 = mean.m - 2*se
+, q2 = mean.m + 2*se
+)
+
+ggplot( data=df, aes(x=M, y=mean)) +
+  geom_hline( yintercept=df.vals$trueProb, size=2, color='red', alpha=0.5) +
+  geom_line() +
+  geom_ribbon(aes(ymin=q1, ymax=q2), alpha=0.1, fill='red') +
+  ylim(c(3,4)*1e-6)
+
+
+# }}}
