@@ -119,3 +119,29 @@ ggplot( data=df, aes(x=M, y=mean)) +
 
 
 # }}}
+
+# Baysian Statistics Without Tears {{{
+
+j2r('include("./BayesianStatWithoutTears.jl")')
+df <- j2r('Example5.instrumentalDist') %>% as.matrix() %>% data.frame()
+str(df)
+qplot(x=X1,y=X2,data=df,geom="point")
+
+q <- j2r('Example5.q') 
+qplot(q)
+
+j2r('include("./BayesianStatWithoutTears.jl")')
+df <- j2r('Example5.resampleVals') %>% as.matrix() %>% data.frame()
+str(df)
+qplot(x=X1,y=X2,data=df,geom="point") +
+geom_density2d()
+
+geom_jitter( position=position_jitter(width=0.02, height=0.02))
+
+
+qplot(x=log(X1/(1-X1)),y=log(X2/(1-X2)),data=df,geom="point") +
+geom_density2d(size=1,color='green')
+
+
+# }}}
+
