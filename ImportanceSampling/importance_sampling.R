@@ -145,3 +145,20 @@ geom_density2d(size=1,color='green')
 
 # }}}
 
+# ParticleFilter.jl {{{
+
+j2r('include("./ParticleFilter.jl")')
+dfData <- j2r('ParticleFilter.dfData') %>% as.matrix() %>% data.frame()
+str(dfData)
+qplot(x=t,y=state,data=dfData,geom="line") +
+  geom_point(aes(y=obs),color='red')
+
+pf <- j2r('ParticleFilter.df') %>% data.frame()
+pf$variable = factor(pf$variable)
+str(pf)
+qplot( x=t, y=value, data=pf, color=variable, geom="point")  +
+  theme(legend.position="none") +
+  geom_point(data=dfData,aes(x=t,y=obs),color='red',size=3,shape=15) +
+  geom_line(data=dfData,aes(x=t,y=state),color='black',size=3,alpha=0.5)
+
+# }}}
