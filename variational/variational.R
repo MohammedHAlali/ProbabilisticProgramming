@@ -40,6 +40,8 @@ ggplot( data=df, aes(x=iter, y=value)) +
 
 # }}}
 
+# normal approx {{{
+
 len <- j2r('variational.s.iter')
 idx <- round(seq.int(1,len,length.out=21))
 
@@ -100,4 +102,88 @@ ggplot(aes(waiting, eruptions, density)) +
   geom_raster(aes(fill = density), interpolate = FALSE)
 
 
-faithfuld %>% sample_n(10) %>% 
+faithfuld %>% sample_n(10)
+
+# }}}
+
+# mixture models {{{
+
+j2r('include("./variational.jl")')
+
+df <- j2r('MixtureModels.df') %>% tbl_df() %>% 
+  mutate( z=factor(z) ) %>% 
+  print()
+df.mu <- j2r("MixtureModels.getMus()") %>% tbl_df() %>% 
+  mutate( simNum = ordered(simNum) ) %>%
+  rename( x1.1 = x1
+         ,x2.1 = x2
+         ,x1.2 = x3
+         ,x2.2 = x4
+         ,x1.3 = x5
+         ,x2.3 = x6
+         ) %>% 
+  gather( param, value, -iter, -simNum, -M ) %>% 
+  separate(param, c("v1","z")) %>% 
+  spread( v1, value)
+
+df.zp <- j2r("MixtureModels.getZp()") %>% tbl_df() %>% 
+  gather( param, value, -iter, -simNum, -M)
+
+ggplot( data=df, aes(x=x1, y=x2, color=z)) +
+  geom_point(size=8) +
+  geom_path( data=df.mu %>% filter(M==1,simNum==1), size=1, aes())
+
+ellip <- function(idx, z) {
+  geom_path(data=j2r(paste('MixtureModels.getCov(',idx,',',z,')'))%>%mutate(z=factor(z)), aes(x=x1,y=x2))
+}
+ggplot(data=df, aes(x=x1,y=x2,color=z)) +
+  geom_point(size=8) +
+  geom_path( data=df.mu %>% filter(M==4), size=1, aes()) +
+  # ellip(1,1) + ellip(1,2) + ellip(1,3) +
+  # ellip(10000,1) + ellip(10000,2) + ellip(10000,3) +
+  ellip(idx,1) + ellip(idx,2) + ellip(idx,3)
+
+
+j2r('MixtureModels.spsa.param_history |> size')
+
+df %>% count(z)
+
+df.param <- j2r("MixtureModels.spsa.param_history") %>% tbl_df() %>% 
+  mutate( logloss = log(loss)
+         , logak = log(ak)
+         , logck = log(ck)
+         , M = factor(M) 
+         , simNum = factor(simNum) ) %>% 
+  gather( param, value, -iter, -simNum, -M )
+
+ggplot( data=df.param, aes(x=iter, y=value)) +
+  facet_wrap( ~param, scales="free_y", ncol=2 ) +
+  theme(legend.position="none") +
+  geom_point(aes(color=simNum, group=M),size=.1) #+ xlim(c(-1,3)+1000)
+
+df.param %>% filter( param=="loss" ) %>% 
+  tail(8000) %>% 
+ggplot( data=. ) +
+  geom_line(aes(x=iter,y=value,color=simNum,group=M))
+
+ggplot( data=df.zp, aes(x=iter, y=value)) +
+  facet_wrap( ~param, scales="free_y", ncol=3 ) +
+  theme(legend.position="none") +
+  geom_point(aes(color=simNum, group=M),size=.1) #+ xlim(c(-1,3)+1000)
+
+
+df.prof <- read.table('/tmp/prof.txt', header=TRUE) %>% tbl_df() %>% 
+  arrange(desc(Count)) %>% 
+  mutate(Line=factor(Line),
+         Function=factor(Function,Function),
+         Frac=Count/max(Count)) %>% 
+  filter(Frac>0.25)
+head(df.prof)
+qplot( x=Frac, y=Function, data=df.prof, color=Line, geom="point", size=10)
+
+ggplot( data=%.%, aes(x=time, y=value)) +
+
+
+# }}}
+
+
