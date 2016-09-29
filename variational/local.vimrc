@@ -12,10 +12,3 @@ function! _EscapeText_r(text)
   return ["R\"\"\"\n", a:text."\"\"\"\n"]
 endfunction
 
-" wrap multiple lines in begin...end block
-function! _EscapeText_julia(text)
-  if len(split(a:text, "\n")) > 1
-    return ["begin\n", a:text."end\n"]
-  endif
-  return a:text
-endfunction
