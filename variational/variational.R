@@ -108,12 +108,15 @@ faithfuld %>% sample_n(10)
 
 # mixture models {{{
 
-j2r('include("./variational.jl")')
+library(ggplot2)
+library(dplyr)
+library(tidyr)
 
-df <- j2r('MixtureModels.df') %>% tbl_df() %>% 
+df <- df_data %>% tbl_df() %>% 
   mutate( z=factor(z) ) %>% 
   print()
-df.mu <- j2r("MixtureModels.getMus()") %>% tbl_df() %>% 
+
+df_mu <- df_mus %>% tbl_df() %>% 
   mutate( simNum = ordered(simNum) ) %>%
   rename( x1.1 = x1
          ,x2.1 = x2
@@ -131,14 +134,19 @@ df.zp <- j2r("MixtureModels.getZp()") %>% tbl_df() %>%
 
 ggplot( data=df, aes(x=x1, y=x2, color=z)) +
   geom_point(size=8) +
-  geom_path( data=df.mu %>% filter(M==1,simNum==1), size=1, aes())
+  geom_path( data=df_mu %>% filter(simNum==0), size=1, aes())
+
+df_mus %>% select(iter, M,simNum)
+
+$(MixtureModels.getEllipse(model, spsa, 1, 1))
 
 ellip <- function(idx, z) {
-  geom_path(data=j2r(paste('MixtureModels.getCov(',idx,',',z,')'))%>%mutate(z=factor(z)), aes(x=x1,y=x2))
+  geom_path(data=j2r(paste('MixtureModels.getCov(',idx,',',z,')'))
+            %>%mutate(z=factor(z)), aes(x=x1,y=x2))
 }
 ggplot(data=df, aes(x=x1,y=x2,color=z)) +
   geom_point(size=8) +
-  geom_path( data=df.mu %>% filter(M==4), size=1, aes()) +
+  geom_path( data=df_mu %>% filter(M==4), size=1, aes()) +
   # ellip(1,1) + ellip(1,2) + ellip(1,3) +
   # ellip(10000,1) + ellip(10000,2) + ellip(10000,3) +
   ellip(idx,1) + ellip(idx,2) + ellip(idx,3)

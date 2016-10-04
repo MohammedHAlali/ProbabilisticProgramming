@@ -12,9 +12,11 @@ test:
 	julia runtests.jl
 
 capture:
-	@tmux capture-pane -p -S -20 -J | \
-	awk -v RS='julia> ' ' {b=a; a=$$0} \
-		END { print "julia> " b } '
+	@tmux capture-pane -p -S -20 -J -t 0 | \
+	awk -v RS='julia> ' '\
+		BEGIN { ORS=RS } \
+			{b=a; a=$$0} \
+		END { print b } '
 
 capture-error:
 	tmux capture-pane -p | awk '\
@@ -31,5 +33,6 @@ lint: runtests.jl
 	julia -E 'using Lint; lintfile("$<")'
 
 tags:
-	ctags * 
-	# ctags-exuberant -R
+	ctags-exuberant -R --totals=yes --languages=julia
+
+.PHONY: tags

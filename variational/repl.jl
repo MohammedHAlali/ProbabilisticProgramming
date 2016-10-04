@@ -1,63 +1,37 @@
 using RCall
 using Distributions
+using ProfileView
+using StatsFuns
 
 include("variational.jl")
+include("/home/abergman/projects/optimization/SPSA.jl")
 
 MixtureModels.profile_negloglikelihood()
 
+df_data = MixtureModels.GenerateData();
+@rput df_data
+X = convert(Array,df_data[[:x1,:x2]]);
+
 k = 3
 m = 2
-r = round(Int64, (m^2+m)/2 )
-df = MixtureModels.GenerateData();
-X = convert(Array,df[[:x1,:x2]]);
-Q = MixtureModels.init_Q(k,m,r, df);
+model = MixtureModels.MixtureModel(k,m)
+Q = MixtureModels.init_Q(model, df_data);
+negloglikelihood = MixtureModels.Gen_negloglikelihood(model, X)
 
-negloglikelihood = MixtureModels.Gen_negloglikelihood(X,k,m,r)
+spsa = SPSAmod.SPSA( Q, negloglikelihood)
+SPSAmod.clear_history(spsa, true)
 
-Profile.clear_malloc_data()
-@time negloglikelihood(Q)
+model = MixtureModels.MixtureModel(k,m)
+MixtureModels.getParams( model, spsa, 1)
 
-@code_warntype negloglikelihood(Q)
-
-spsa = MixtureModels.SPSAmod.SPSA( Q, negloglikelihood)
-MixtureModels.SPSAmod.clear_history(spsa, true)
 
 spsa.dQmax = 0.01
-@time MixtureModels.SPSAmod.searchADAM( spsa, 100 )
-
-@time MixtureModels.SPSAmod.searchADAM( spsa, 1000 )
-
-@time SPSAmod.SPSAgrad(spsa, q_init, 0.001)
-
+@time SPSAmod.searchADAM( spsa, 1000, 1)
 df_mus = MixtureModels.getMus(spsa)
 @rput df_mus
 
-R"""
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-"""
+MixtureModels.getCov(1,1)
 
-R"""
-df_mus <- df_mus %>% tbl_df() %>% 
-  mutate( simNum = ordered(simNum) ) %>%
-  rename( x1.1 = x1
-         ,x2.1 = x2
-         ,x1.2 = x3
-         ,x2.2 = x4
-         ,x1.3 = x5
-         ,x2.3 = x6
-         ) %>% 
-  gather( param, value, -iter, -simNum, -M ) %>% 
-  separate(param, c("v1","z")) %>% 
-  spread( v1, value)
-"""
-
-R"""
-qplot(x=iter,y=x1,data=df_mus)
-"""
-
-using ProfileView
 
 Profile.clear()
 spsa = MixtureModels.SPSAmod.SPSA( Q, negloglikelihood)
@@ -66,6 +40,10 @@ s = open("/tmp/prof.txt","w")
 # Profile.print(s, format=:flat, sortedby=:count )
 Profile.print(s)
 close(s)
+ProfileView.view()
+
+Profile.clear()
+@profile MvNormal(pdmat)
 ProfileView.view()
 
 spsa.dQmax = 0.001
@@ -78,13 +56,6 @@ using RCall
 MixtureModels.initCov(3)
 
 
-rig = zeros(r,k)
-q = 1:(r*k) 
-j = 0
-for i in eachindex(rig)
-  j += 1
-  rig[i] = q[j]
-end
 
 df = DataFrame([Float64, Int], [:x,:t], 10)
 
@@ -109,76 +80,38 @@ end
 logpdf(dist, X')
 
 
-
-function f(x::Float64)
-  grad = zeros(10)
-  grad[3] = x
-  return grad
-end # function f
-
-function for_f(x::Float64)
-  for i::Float64 = 1:1000
-    f(i)
-  end
-end
-
-function gen_h()
-  grad = zeros(10)
-  function h(x::Float64)
-    grad[3] = x
-    return grad
-  end
-end
-
-function for_h(h::Function)
-  for i::Float64 = 1:1000
-    h(i)
-  end
-end # function for_h
-
-
-function m!(grad::Array{Float64,1}, x::Float64)
-  grad[3] = x
-end
-
-function for_m()
-  grad = zeros(Float64,10)
-  for i::Float64 = 1:1000
-    m!( grad, i )
-  end
-  return grad
-end
-
-f(1.)
-for_f(1.)
-for_h(f)
-for_m()
-  
-
-
-h = gen_h()
-# @time f(3.)
-# @time for_f(3.)
-# @time for_h(f)
-# @time for_h(h)
-# @time for_m()
-
 using Gallium
 include(Pkg.dir("Gallium/examples/testprograms/misc.jl"))
 Gallium.breakpoint(sinthesin,Tuple{Int64})
 inaloop(2)
 
-Union{
-      Array{
-            Distributions.MvNormal{
-                                   Float64
-                                   ,PDMats.PDMat{
-                                                 Float64
-                                                 ,Array{Float64,2}
-                                                }
-                                   ,Array{Float64,1}
-                                  }
-            ,1
-           }
-      ,Distributions.Categorical
-     }
+
+Pkg.add("Debug")
+using Debug
+
+
+
+k = 3
+mus = [zeros(m) for i=1:k]
+mus[2]
+
+mvnorms = Array{MvNormal}(3)
+mvnorms[1] = MvNormal(mus[1],PDMat(eye(m)))
+mvnorms
+
+k = 3
+m = 2
+include("./variational.jl")
+model = MixtureModels.MixtureModel(k,m)
+
+zp = softmax(1:3)
+zdist =  Categorical(zp)
+println(zdist)
+
+zp[1] = 0.3333333333333333333333333333333333
+zp[2] = 0.333
+zp[3] = 0.33333
+println(zdist)
+
+rand(zdist,100)'
+
