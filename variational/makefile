@@ -1,8 +1,9 @@
 all: capture
 
 mem: memory-profile.jl
-	julia --track-allocation=user \
-		-e 'include("variational.jl"); MixtureModels.profile_negloglikelihood()'
+	julia --track-allocation=user $<
+	# julia --track-allocation=all $<
+		# -e 'include("variational.jl"); MixtureModels.profile_negloglikelihood()'
 
 profile: /tmp/prof.txt
 	awk '{ print $$3" "$$2" "$$1" "$$4; }' $<
@@ -27,7 +28,7 @@ capture-error:
 		x!="" {x=x $$0} '
 
 clean:
-	rm *.jl.mem
+	rm -v *.jl.mem
 
 lint: runtests.jl
 	julia -E 'using Lint; lintfile("$<")'

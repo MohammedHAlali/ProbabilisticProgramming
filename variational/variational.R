@@ -129,34 +129,27 @@ df_mu <- df_mus %>% tbl_df() %>%
   separate(param, c("v1","z")) %>% 
   spread( v1, value)
 
-df.zp <- j2r("MixtureModels.getZp()") %>% tbl_df() %>% 
+df.zp <- $(MixtureModels.getZp(model,spsa)) %>% tbl_df() %>% 
   gather( param, value, -iter, -simNum, -M)
+
+qplot( x=x1, y=x2, data=df, color=z, geom="point")
 
 ggplot( data=df, aes(x=x1, y=x2, color=z)) +
   geom_point(size=8) +
   geom_path( data=df_mu %>% filter(simNum==0), size=1, aes())
 
+
+df_cov <- $(MixtureModels.getCov!(model, spsa, nrow(df_mus) ))
+ggplot( data=df, aes(x=x1, y=x2, color=z, group=z)) +
+  geom_point(size=8) +
+  geom_path( data=df_cov%>%mutate(z=factor(k)), size=1 )
+
 df_mus %>% select(iter, M,simNum)
 
-$(MixtureModels.getEllipse(model, spsa, 1, 1))
-
-ellip <- function(idx, z) {
-  geom_path(data=j2r(paste('MixtureModels.getCov(',idx,',',z,')'))
-            %>%mutate(z=factor(z)), aes(x=x1,y=x2))
-}
-ggplot(data=df, aes(x=x1,y=x2,color=z)) +
-  geom_point(size=8) +
-  geom_path( data=df_mu %>% filter(M==4), size=1, aes()) +
-  # ellip(1,1) + ellip(1,2) + ellip(1,3) +
-  # ellip(10000,1) + ellip(10000,2) + ellip(10000,3) +
-  ellip(idx,1) + ellip(idx,2) + ellip(idx,3)
-
-
-j2r('MixtureModels.spsa.param_history |> size')
 
 df %>% count(z)
 
-df.param <- j2r("MixtureModels.spsa.param_history") %>% tbl_df() %>% 
+df.param <- $(spsa.param_history) %>% tbl_df() %>% 
   mutate( logloss = log(loss)
          , logak = log(ak)
          , logck = log(ck)
@@ -167,7 +160,7 @@ df.param <- j2r("MixtureModels.spsa.param_history") %>% tbl_df() %>%
 ggplot( data=df.param, aes(x=iter, y=value)) +
   facet_wrap( ~param, scales="free_y", ncol=2 ) +
   theme(legend.position="none") +
-  geom_point(aes(color=simNum, group=M),size=.1) #+ xlim(c(-1,3)+1000)
+  geom_point(aes(color=simNum, group=M),size=0.1) #+ xlim(c(-1,3)+1000)
 
 df.param %>% filter( param=="loss" ) %>% 
   tail(8000) %>% 

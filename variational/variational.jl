@@ -116,43 +116,40 @@ using Distributions
 using DataFrames
 using PDMats
 using Base.LinAlg.Cholesky
+using Base.LinAlg.BLAS
 
 type MixtureModel
   k::Int # number of mixtures
   m::Int # number of features
-  r::Int
   mus::Array{Array{Float64,1},1}
-  rig::Array{Float64,2}
   zp::Array{Float64,1}
   R::Array{Array{Float64,2},1}
-  mvnorms::Array{MvNormal}
+  RtR::Array{Array{Float64,2},1}
+  mvnorms::Array{FullNormal}
   zdist::Categorical
+  lH::Array{Float64,1}
+  lp_mvn::Array{Array{Float64,1},1}
+  lp_z::Array{Float64,1}
   function MixtureModel(k,m)
     model = new(k,m)
-    r = round(Int64, (m^2+m)/2 )
-    model.r = r
     model.mus = [zeros(m) for i=1:k]
-    model.rig = zeros(r,k)
     model.zp  = zeros(k)
-    model.R = [zeros(m,m) for i=1:k]
-    model.mvnorms = Array{MvNormal}(k)
+    model.R = Array{Matrix}(k)
+    model.RtR = Array{Matrix}(k)
+    model.mvnorms = Array{FullNormal}(k)
     for i = 1:k
       model.mvnorms[i] = MvNormal( model.mus[i], PDMat(eye(m)) )
-      R = model.mvnorms[i].Σ.chol.factors
+      model.R[i] = model.mvnorms[i].Σ.chol.factors
+      model.RtR[i] = model.mvnorms[i].Σ.mat
     end
     model.zdist = Categorical(k)
     return model
   end
 end
 
-function getKMR( model::MixtureModel )
-  return model.k, model.m, model.r
+function getKM( model::MixtureModel )
+  return model.k, model.m
 end
-
-function getBuffers( model::MixtureModel )
-  return model.mus, model.rig, model.zp
-end
-
 
 function unpack_chol!( R::Array{Float64,2}
                       ,s::Int
@@ -170,31 +167,19 @@ function unpack_chol!( R::Array{Float64,2}
   return s
 end
 
-function genCov( r::Array{Float64,1} )
-  l = length(r)
-  m = round(Int64,(sqrt(1+8l)-1)/2)
-  k=0
-  R=Float64[i<=j?(k+=1;r[k]):0 for i=1:m, j=1:m]
-  S=R'*R
-end
-
-function randCov( n )
-  rand(round(Int64,(n^2+n)/2))-0.5 |> genCov
-end
-
-function initCov(m)
+function initCov( U )
+  m = size(U,1)
   r = Float64[]
-  for i = 1:m
-    for j = 1:m
-      if i==j
-        push!(r, 1.)
-      elseif i>j
-        push!(r, 0.)
+  for j = 1:m
+    for i = 1:m
+      if i > j
+        continue
       end
+      push!(r, U[i,j])
     end
   end
   return r
-end # function initCov
+end
 
 function GenerateData()
   zp = [0.3,0.5,0.2]
@@ -219,17 +204,6 @@ function GenerateData()
   return df
 end
 
-
-function unpack!( mus::Array{Float64,2}
-                 ,rig::Array{Float64,2}
-                 , zp::Array{Float64,1}
-                 ,  q::Array{Float64,1} )
-  s = 0
-  s = unpack_array!(mus,s,q)
-  s = unpack_array!(rig,s,q)
-  s = unpack_array!(zp,s,q)
-end # function
-
 function unpack_array!( a::AbstractArray
                        ,s::Int
                        ,q::Array{Float64,1} )
@@ -249,103 +223,107 @@ function unpack!( model::MixtureModel, Q::Vector )
   end
 
   for i = 1:k
-    s = unpack_chol!(model.R[i], s, Q)
+    R = model.R[i]
+    s = unpack_chol!(R, s, Q)
+    fill!(model.RtR[i],0.0)
+    gemm!('T','N',1.0,R,R,1.0,model.RtR[i])
   end
-  
-  s = unpack_array!(zp, s, q)
+ 
+  zp = model.zp
+  s = unpack_array!(zp, s, Q)
   softmax!(zp, zp)
+
+  return s
 end # function unpack!
 
-function Gen_negloglikelihood( model::MixtureModel, X::Array{Float64,2}  )
-  k, m, r = getKMR(model)
-  lH = zeros(k)
+function Gen_negloglikelihood( model::MixtureModel, X::Array{Float64,2} )
+  @assert model.m == size(X,2) 
+  k = model.k
   N = size(X,1)
-  lp_mvn = [zeros(N) for i=1:k]
-  lp_z = zeros(k)
-  function negloglikelihood( q::Array{Float64,1} )
-    unpack!( model, q)
-    for h = 1:k
-      logpdf!(lp_mvn[h], model.mvnorms[h], X')
-    end
-    logpdf!(lp_z, model.zdist, 1:k)
-    lp = 0.0
-    @inbounds for n in 1:N
-      for h = 1:k
-        lH[h] = lp_mvn[h][n] + lp_z[h]
-      end
-      lp += logsumexp( lH )
-    end
-    return -lp
+  model.lH = zeros(k)
+  model.lp_mvn = [zeros(N) for i=1:k]
+  model.lp_z = zeros(k)
+  function nll( q::Array{Float64,1} )
+    negloglikelihood( model, X, q )
   end
-  return negloglikelihood
+  return nll
 end
 
-function getParams( model, spsa, idx::Int64 )
-  Q = convert(Array{Float64}, spsa.param_history[idx,:]) |> vec
-  (mus, rig, zp) = getBuffers( model )
-  unpack!( mus, rig, zp, Q )
-  return getBuffers( model )
-end
-
-function getZp()
-  df_zp = Float64[
-    begin
-      (mus, rig, zp) = getParams(i)
-      Float64[zp ; softmax(zp)][j]
+function negloglikelihood(model::MixtureModel, X::Array{Float64,2}, q::Array{Float64,1} )
+  k, m = getKM(model)
+  N = size(X,1)
+  lp = 0.0
+  unpack!( model, q)
+  for h = 1:k
+    logpdf!(model.lp_mvn[h], model.mvnorms[h], X')
+    model.lp_z[h] = log( model.zp[h] )
+  end
+  @inbounds for n in 1:N
+    for h = 1:k
+      model.lH[h] = model.lp_mvn[h][n] + model.lp_z[h]
     end
-    for i = 1:size(spsa.param_history,1), j=1:6 ] |> DataFrame
+    lp += logsumexp( model.lH )
+  end
+  return -lp
+end # function f
+
+function setparams!( model, spsa, idx::Int64 )
+  Q = convert(Array{Float64}, spsa.param_history[idx,:]) |> vec
+  unpack!( model, Q)
+  nothing
+end
+
+
+function getZp(model::MixtureModel, spsa)
+  N = size(spsa.param_history,1)
+  zp = zeros(6, N)
+  for idx = 1:N
+    setparams!( model, spsa, idx)
+    zp[:,idx] = [ model.zp ; softmax(model.zp) ]
+  end
   df_hist = spsa.param_history[:,[:iter,:M,:simNum]] 
-  return [df_zp df_hist]
+  return [DataFrame(zp') df_hist]
 end # function getZp
 
 function getMus(spsa)
   [spsa.param_history[:,[:iter,:M,:simNum]] spsa.param_history[:,1:6]]
 end # function getMus
 
-function getEllipse(idx )
-  return 12*idx
-  model.mvnorms[i].Σ.chol.factors 
-  for t in linspace(0,2*pi,100)
-    cos(2*pi*t)
+
+function getCov!(model::MixtureModel, spsa, idx::Int64, T::Int=100 )
+
+  setparams!( model, spsa, idx)
+
+  σ = 2.0
+  k = model.k
+  t = linspace(0,2*pi,T)
+  circle = σ*[cos(t)  sin(t)]'
+  ellipse = zeros(2,T,k)
+
+  for t = 1:T
+    for h = 1:k
+      ellipse[:,t,h] = model.R[h]' * circle[:,t] + model.mus[h]
+    end
   end
+
+  return map(1:k) do k
+    df = DataFrame( ellipse[:,:,k]' )
+    df[:k] = k
+    df
+  end |> vcat
 end
 
-function getCov(model, spsa, idx::Int64, z::Int64)
+function init_Q( model::MixtureModel, X::Matrix )
 
-  T = 100
-  circle = ones(2, T)
+  S = cov(X)
+  R = chol(S)
+  r = initCov( R )
 
-  for t in linspace(0,2*pi,100)
-    circle[1,t] = σ * cos(2*pi*t)
-    circle[2,t] = σ * sin(2*pi*t)
-  end
+  mu = mean(X,1) |> vec
 
-  model.L[i] * circle + model.mus[i]
-
-
-  (mus, rig, zp) = getParams( model, spsa, idx)
-  cov = genCov(rig[:,z])
-  (eVal, eVec) = eig(cov)
- 
-  c = 1
-  a = sqrt( c*eVal )
-  X = mus[:,z] .+ ((a.*[cos(t) sin(t)]')'*eVec)'
-  X = mus[:,z] .+ ((a.*[cos(t) sin(t)]')'*eVec)'
-  
-  df = DataFrame(X')
-  df[:z] = z
-  
-  return df
-end
-
-function init_Q( model::MixtureModel, df)
-  k,m,r = getKMR(model)
-
-  std_init = max(std(df[:x1]),std(df[:x2]))
-
-  mu_init = Float64[[mean(df[:x1]),mean(df[:x2])][a] for a=1:m, i=1:k] |> vec
-  s_init  = std_init*[ initCov( m ) ; initCov( m ) ; initCov( m ) ] 
-  z_init  = zeros( k )
+  mu_init = [ mu ; mu ; mu ]
+  s_init  = [  r ;  r ;  r ] 
+  z_init  = zeros( model.k )
   q_init = [mu_init ; s_init ; z_init ]
   return q_init
 end # function init_Q
@@ -361,16 +339,16 @@ function posteriorResponsibility()
 end
 
 function profile_negloglikelihood()
-  MixtureModel(3,2)
+  model = MixtureModel(3,2)
   df = GenerateData()
   X = convert(Array,df[[:x1,:x2]]) 
-  Q = init_Q(model, df) 
+  Q = init_Q(model, X) 
   nll = Gen_negloglikelihood( model, X )
   nll( Q )
   Profile.clear_malloc_data()
   sol = 0.0
-  @time for i = 1:1000
-    sol = nll(Q)
+  for i = 1:1000
+    sol += nll(Q)
   end
   print( hash(sol) )
 end # function profile_negloglikelihood
