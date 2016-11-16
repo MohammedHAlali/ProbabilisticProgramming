@@ -12,6 +12,8 @@ else
     send-keys 'while true;do julia;sleep 1;done' C-m \; \
     new-window -n 'ipython' \; \
     send-keys 'ipython --no-banner' C-m \; \
+    new-window -n 'bash' \; \
+    send-keys 'bash' C-m \; \
     select-window -t 3
 fi
 
