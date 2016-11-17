@@ -16,4 +16,4 @@ print(total_parameters)
 
 15 + 15 + 15*15 + 15 + (300 + 20)*3
 
-
+y_test.shape

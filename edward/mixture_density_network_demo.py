@@ -123,13 +123,26 @@ inference.initialize()
 init = tf.initialize_all_variables()
 init.run()
 
-n_epoch = 100
+
+import timeit
+
+n_epoch = 1000
 train_loss = np.zeros(n_epoch)
 test_loss = np.zeros(n_epoch)
+start = timeit.default_timer()
 for i in range(n_epoch):
   info_dict = inference.update(feed_dict={X: X_train, y: y_train})
   train_loss[i] = info_dict['loss']
-  test_loss[i] = sess.run(inference.loss, feed_dict={X: X_test, y: y_test})
+  # test_loss[i] = sess.run(inference.loss, feed_dict={X: X_test, y: y_test})
+end = timeit.default_timer()
+print( (end-start)/n_epoch , "sec/iter\t", (end - start) , "sec" )
+# 0.01175 sec/iter
+
+start = timeit.default_timer()
+test_loss[i] = sess.run(inference.loss, feed_dict={X: X_test, y: y_test})
+end = timeit.default_timer()
+print( (end - start) , "sec" )
+# 0.02549 sec
 
 #
 # CRITICISM
@@ -145,6 +158,8 @@ def plotloss():
     plt.xlabel('Epoch', fontsize=15)
     plt.ylabel('Log-likelihood', fontsize=15)
     plt.show()
+
+plotloss()
 
 obj = [0, 4, 6]
 fig = plt.figure(3)
