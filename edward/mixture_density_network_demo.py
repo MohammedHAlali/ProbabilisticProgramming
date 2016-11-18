@@ -106,7 +106,6 @@ plt.clf()
 sns.regplot(X_train, y_train, fit_reg=False)
 plt.show()
 
-
 X = tf.placeholder(tf.float32, [None, D])
 y = tf.placeholder(tf.float32, [None, D])
 data = {'X': X, 'y': y}
@@ -114,9 +113,14 @@ data = {'X': X, 'y': y}
 # MODEL
 model = MixtureDensityNetwork(20)
 
+ init = tf.initialize_all_variables() #launch the graph 
+ sess.run(init)
+
 # INFERENCE
-inference = ed.MAP([], data, model)
-sess = ed.get_session()  # Start TF session
+inference = ed.MAP([], data, model) # /home/abergman/.local/lib/python3.5/site-packages/edward/inferences/inference.py:171
+config = tf.ConfigProto(device_count={'CPU': 8}) 
+sess = tf.Session(config=config) 
+# sess = ed.get_session()  # Start TF session ~/.local/lib/python3.5/site-packages/edward/util/graphs.py
 K.set_session(sess)  # Pass session info to Keras
 inference.initialize()
 
