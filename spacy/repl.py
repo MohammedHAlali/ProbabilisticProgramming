@@ -1,57 +1,75 @@
-import spacy
-spacy.load('en')
-print('OK')
-
-import os
-import spacy
-print(os.path.dirname(spacy.__file__))
-
+# https://github.com/cytora/pycon-nlp-in-10-lines/blob/master/tutorial_easy.ipynb
 import spacy
 nlp = spacy.load('en')
-doc = en_nlp(u'Hello, world. Here are two sentences.')
 
-texts = [u'One document.', u'...', u'Lots of documents']
-# .pipe streams input, and produces streaming output
-iter_texts = (texts[i % 3] for i in range(100000000))
-for i, doc in enumerate(nlp.pipe(iter_texts, batch_size=50, n_threads=4)):
-    assert doc.is_parsed
-    if i == 100:
-        break
+doc = nlp('Hello, world. Natural Language Processing in 10 lines of code.')
 
-token = doc[0]
-sentence = next(doc.sents)
-assert token is sentence[0]
-assert sentence.text == 'Hello, world.'
+for token in doc:
+    print( token )
 
-hello_id = nlp.vocab.strings['Hello']
-hello_str = nlp.vocab.strings[hello_id]
-assert token.orth  == hello_id  == 3125
-assert token.orth_ == hello_str == 'Hello'
+for sentence in doc.sents:
+    print( sentence )
 
-assert token.shape_ == 'Xxxxx'
-for lexeme in nlp.vocab:
-    if lexeme.is_alpha:
-        lexeme.shape_ = 'W'
-    elif lexeme.is_digit:
-        lexeme.shape_ = 'D'
-    elif lexeme.is_punct:
-        lexeme.shape_ = 'P'
-    else:
-        lexeme.shape_ = 'M'
-assert token.shape_ == 'W'
+# part of speech tag
+# http://www.winwaed.com/blog/2011/11/08/part-of-speech-tags/
+for token in doc:
+    print( token, "\t\t", token.pos_ )
 
-# Export to numpy arrays
-from spacy.attrs import ORTH, LIKE_URL, IS_OOV
 
-attr_ids = [ORTH, LIKE_URL, IS_OOV]
-doc_array = doc.to_array(attr_ids)
-assert doc_array.shape == (len(doc), len(attr_ids))
-assert doc[0].orth == doc_array[0, 0]
-assert doc[1].orth == doc_array[1, 0]
-assert doc[0].like_url == doc_array[0, 1]
-assert list(doc_array[:, 1]) == [t.like_url for t in doc]
+#
+# Write a function that walks up the syntactic tree of the given token and
+# collects all tokens to the root token (including root token).
+def tokens_to_root(token):
+    """
+    Walk up the syntactic tree, collecting tokens to the root of the given `token`.
+    :param token: Spacy token
+    :return: list of Spacy tokens
+    """
+    tokens_to_r = []
+    while token.head is not token:
+        tokens_to_r.append(token)
+        token = token.head
+        
+    tokens_to_r.append(token)
+    return tokens_to_r
 
-# Word Vectors
+# For every token in document, print it's tokens to the root
+for token in doc:
+    print('{} --> {}'.format(token, tokens_to_root(token)))
+
+print()
+# Print dependency labels of the tokens
+for token in doc:
+    print('-> '.join(['{}-{}'.format(dependent_token, dependent_token.dep_) for
+        dependent_token in tokens_to_root(token)]))
+
+
+#
+# Print all named entities with named entity types
+doc_2 = nlp("I went to Paris where I met my old friend Jack from uni.")
+for ent in doc_2.ents:
+    print('{} - {}'.format(ent, ent.label_))
+
+doc.ents
+
+# Noun chunks are the phrases based upon nouns recovered from tokenized text
+# using the speech tags
+# Print noun chunks for doc_2
+print([chunk for chunk in doc_2.noun_chunks])
+
+for c in doc.noun_chunks:
+    print(c)
+
+
+# For every token in doc_2, print log-probability of the word, estimated from
+# counts from a large corpus 
+for token in doc_2:
+    print(token, ',', token.prob)
+
+doc[4].prob
+
+#
+# Word Embedding
 doc = nlp("Apples and oranges are similar. Boots and hippos aren't.")
 
 apples = doc[0]
@@ -59,85 +77,175 @@ oranges = doc[2]
 boots = doc[6]
 hippos = doc[8]
 
-assert apples.similarity(oranges) > boots.similarity(hippos)
+print( apples.similarity( oranges) )
+print( boots.similarity( hippos ) )
 
-# Part-of-speech tags
-from spacy.parts_of_speech import ADV
+apples_sents, boots_sents = doc.sents
 
-def is_adverb(token):
-    return token.pos == spacy.parts_of_speech.ADV
+fruit = doc.vocab['fruit']
 
-# These are data-specific, so no constants are provided. You have to look
-# up the IDs from the StringStore.
-NNS = nlp.vocab.strings['NNS']
-NNPS = nlp.vocab.strings['NNPS']
-def is_plural_noun(token):
-    return token.tag == NNS or token.tag == NNPS
+apples_sents.similarity(fruit)
 
-def print_coarse_pos(token):
-    print(token.pos_)
+boots_sents.similarity(fruit)
 
-def print_fine_pos(token):
-    print(token.tag_)
+import matplotlib
+import numpy as np
+import matplotlib.pyplot as plt
 
-is_plural_noun(doc[2])
+def read_file(file_name):
+    with open(file_name, 'r') as file:
+        return file.read()
 
-print_coarse_pos(doc[4])
+# Process `text` with Spacy NLP Parser
+text = read_file('/tmp/pride_and_prejudice.txt')
+processed_text = nlp(text)
 
-# Syntactic dependencies
-def dependency_labels_to_root(token):
-    '''Walk up the syntactic tree, collecting the arc labels.'''
-    dep_labels = []
-    while token.head is not token:
-        dep_labels.append(token.dep)
-        token = token.head
-    return dep_labels
+sentences = [s for s in processed_text.sents]
 
-dependency_labels_to_root( doc[4] )
+len(sentences)
 
-# Named entities
-def iter_products(docs):
-    for doc in docs:
-        for ent in doc.ents:
-            if ent.label_ == 'PRODUCT':
-                yield ent
+print( sentences[10:14] )
 
-def word_is_in_entity(word):
-    return word.ent_type != 0
 
-def count_parent_verb_by_person(docs):
-    counts = defaultdict(defaultdict(int))
-    for doc in docs:
-        for ent in doc.ents:
-            if ent.label_ == 'PERSON' and ent.root.head.pos == VERB:
-                counts[ent.orth_][ent.root.head.lemma_] += 1
-    return counts
+from collections import Counter, defaultdict
 
-iter_products( doc )
+def find_actor_occurences(doc):
+    actors = Counter()
+    for ent in processed_text.ents:
+        if ent.label_ == 'PERSON':
+            actors[ent.lemma_] += 1
+    return actors.most_common()
 
-count_parent_verb_by_person( doc )
+count = 0
+for ent in processed_text.ents:
+    if ent.label_ == 'PERSON':
+        print(ent.lemma_)
+        count+=1
+        if count == 40:
+            break
 
-# Calculate inline mark-up on original string
-def put_spans_around_tokens(doc, get_classes):
-    '''Given some function to compute class names, put each token in a
-    span element, with the appropriate classes computed.
+print( find_actor_occurences( processed_text )[:20] )
 
-    All whitespace is preserved, outside of the spans. (Yes, I know HTML
-    won't display it. But the point is no information is lost, so you can
-    calculate what you need, e.g.  tags,  tags, etc.)
-    '''
-    output = []
-    template = '{word}{space}'
-    for token in doc:
-        if token.is_space:
-            output.append(token.orth_)
-        else:
-            output.append(
-              template.format(
-                classes=' '.join(get_classes(token)),
-                word=token.orth_,
-                space=token.whitespace_))
-    string = ''.join(output)
-    string = string.replace('\n', '')
-    string = string.replace('\t', '    ')
-    return string
+find_actor_occurences( processed_text )[:20] 
+
+find_actor_occurences( processed_text ) 
+
+def get_actors_offsets( doc ):
+    actor_offsets = defaultdict( list )
+    for ent in doc.ents:
+        if ent.label_ == 'PERSON':
+            actor_offsets[ent.lemma_].append( ent.start )
+    return dict( actor_offsets )
+
+actors_occurences = get_actors_offsets( processed_text )
+
+from matplotlib.pyplot import hist
+from cycler import cycler
+
+NUM_BINS = 10
+
+def normalize(occurencies, normalization_constant):
+    return [o / float(len(processed_text)) for o in occurencies]
+
+def plot_actor_timeseries(actor_offsets, actor_labels, normalization_constant=None):
+    """
+    Plot actors' personal names specified in `actor_labels` list as time series.
+    
+    :param actor_offsets: dict object in form {'elizabeth': [123, 543, 4534], 'darcy': [205, 2111]}
+    :param actor_labels: list of strings that should match some of the keys in `actor_offsets`
+    :param normalization_constant: int
+    """
+    x = [actor_offsets[actor_label] for actor_label in actor_labels] 
+    
+    if normalization_constant:
+        x = [normalize(actor_offset, normalization_constant) for actor_offset in x]
+        
+
+    with plt.style.context('fivethirtyeight'):
+        plt.figure()
+        n, bins, patches = plt.hist(x, NUM_BINS, label=actor_labels)
+        plt.clf()
+        
+        ax = plt.subplot(111)
+        for i, a in enumerate(n):
+            ax.plot([x / (NUM_BINS - 1) for x in range(len(a))], a, label=actor_labels[i])
+            
+        matplotlib.rcParams['axes.prop_cycle'] = cycler(color=['r','k','c','b','y','m','g','#54a1FF'])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+plot_actor_timeseries(actors_occurences, ['darcy', 'bingley'], normalization_constant=len(processed_text))
+
+plt.figure()
+
+plt.show()
+
+# Find words (adjectives) that describe Mr Darcy.
+
+def get_actor_adjectives(doc, actor_lemma):
+    """
+    Find all the adjectives related to `actor_lemma` in `doc`
+    
+    :param doc: Spacy NLP parsed document
+    :param actor_lemma: string object
+    :return: list of adjectives related to `actor_lemma`
+    """
+    
+    adjectives = []
+    for ent in processed_text.ents:
+        if ent.lemma_ == actor_lemma:
+            for token in ent.subtree:
+                if token.pos_ == 'ADJ': # Replace with if token.dep_ == 'amod':
+                    adjectives.append(token.lemma_)
+    
+    for ent in processed_text.ents:
+        if ent.lemma_ == actor_lemma:
+            if ent.root.dep_ == 'nsubj':
+                for child in ent.root.head.children:
+                    if child.dep_ == 'acomp':
+                        adjectives.append(child.lemma_)
+    
+    return adjectives
+
+print(get_actor_adjectives(processed_text, 'darcy'))
+
+
+
+
+# Find actors that are 'talking', 'saying', 'doing' the most. Find the
+# relationship between entities and corresponding root verbs.
+
+actor_verb_counter = Counter()
+VERB_LEMMA = 'marry'
+
+for ent in processed_text.ents:
+    if ent.label_ == 'PERSON' and ent.root.head.lemma_ == VERB_LEMMA:
+        actor_verb_counter[ent.text] += 1
+
+print(actor_verb_counter.most_common(10)) 
+        
+# Find all the actors that got married in the book
+#
+# Here is an example sentence from which this information could be extracted:
+# 
+# "her mother was talking to that one person (Lady Lucas) freely,
+# openly, and of nothing else but her expectation that Jane would soon
+# be married to Mr. Bingley."
+#
+
+# Extract Keywords using noun chunks from the news article (file
+# 'article.txt').  Spacy will pick some noun chunks that are not informative at
+# all (e.g. we, what, who).  Try to find a way to remove non informative
+# keywords.
+
+article = read_file('/tmp/article.txt')
+doc = nlp(article)
+
+keywords = Counter()
+for chunk in doc.noun_chunks:
+    if nlp.vocab[chunk.lemma_].prob < - 8: # probablity value -8 is arbitrarily selected threshold
+        keywords[chunk.lemma_] += 1
+
+keywords.most_common(20)
+
+
+
