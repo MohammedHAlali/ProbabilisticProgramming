@@ -17,3 +17,5 @@ myfind zathura
 pip search opencv
 
 pip install --user --upgrade opencv-python
+
+cd /home/abergman/.julia/v0.5/MXNet/examples/mnist/mlp.jl
