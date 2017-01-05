@@ -1,2 +1,1 @@
-from theano import *
-
+import theano 
