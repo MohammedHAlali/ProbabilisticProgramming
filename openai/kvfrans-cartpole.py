@@ -27,7 +27,7 @@ def run_episode( env, parameters ):
 
 run_episode( env, parameters )
 
-bestParam = None
+bestParam = parameters
 bestReward = 0
 for _ in xrange(100):
     parameters = 2*np.random.rand(4) - 1
@@ -36,6 +36,7 @@ for _ in xrange(100):
         bestReward = reward
         bestParam = parameters
         if reward >= 200:
+            print( "Solution Found" )
             break
 
 run_episode( env, bestParam )
@@ -44,10 +45,11 @@ noise_scaling = 0.01
 # parameters = np.random.rand(4) * 2 - 1
 # parameters = np.zeros(4)
 bestReward = 0
-for _ in xrange( 100 ):
+for i in xrange( 100 ):
     dp = (2*np.random.rand(4)-1) * noise_scaling
     newparams =  parameters + dp
     reward = run_episode( env, newparams )
+    print("bestReward %s", bestReward )
     if reward > bestReward:
         bestReward = reward
         parameters = newparams
