@@ -7,7 +7,7 @@ if tmux has-session -t $NAME; then
 else
   tmux new-session -A -s $NAME \; \
     new-window -n 'ipython' \; \
-    send-keys 'ipython3 --no-banner' C-m \; \
+    send-keys 'ipython2 --no-banner' C-m \; \
     select-window -t 2
 fi
 

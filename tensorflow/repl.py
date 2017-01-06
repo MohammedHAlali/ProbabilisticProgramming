@@ -1,4 +1,8 @@
 import tensorflow as tf
+tf.__version__
+
+tf.__path__
+
 
 hello = tf.constant('Hello')
 sess = tf.Session()
