@@ -16,4 +16,6 @@ output.eval( feed_dict=data )
 
 sess.close()
 
+file_writer = tf.summary.FileWriter( 'feed.log' , sess.graph)
+
 

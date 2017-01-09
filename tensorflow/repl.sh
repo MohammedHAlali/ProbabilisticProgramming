@@ -9,4 +9,4 @@ pip3 install --upgrade --user tensorflow
 
 pip3 install  --user https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.12.1-cp35-cp35m-linux_x86_64.whl
 
-
+tensorboard --logdir=feed.log
