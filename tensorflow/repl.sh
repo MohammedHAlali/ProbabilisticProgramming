@@ -15,3 +15,7 @@ tensorboard --logdir=. --verbose --reload_interval=1
 
 wget https://raw.githubusercontent.com/ericjang/tdb/master/notebooks/mnist_demo.ipynb
 
+wget https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/examples/tutorials/mnist/mnist_with_summaries.py
+
+python ./mnist_with_summaries.py
+tensorboard --logdir=/tmp/tensorflow --verbose --reload_interval=1
