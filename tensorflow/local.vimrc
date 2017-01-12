@@ -10,5 +10,5 @@ let g:slime_python_ipython = 1
 augroup lint-on-write
   au!
   " autocmd BufWrite * Neomake
-  autocmd InsertChange,TextChanged * update|Neomake
+  autocmd InsertLeave,TextChanged * update|Neomake
 augroup END
