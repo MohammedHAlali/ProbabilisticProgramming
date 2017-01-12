@@ -19,3 +19,5 @@ wget https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/e
 
 python ./mnist_with_summaries.py
 tensorboard --logdir=/tmp/tensorflow --verbose --reload_interval=1
+
+rm -rf ./tf_logs/*
