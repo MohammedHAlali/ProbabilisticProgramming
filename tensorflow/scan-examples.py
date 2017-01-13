@@ -97,7 +97,8 @@ class Model(object):
                 'W_x', shape=[self.input_size, self.hidden_layer_size])
             b = tf.get_variable('b', shape=[self.hidden_layer_size],
                                 initializer=tf.constant_initializer(0.0))
-            h = tf.tanh(tf.matmul(h_prev, W_h) + tf.matmul(x, W_x) + b)
+            h = tf.matmul(h_prev, W_h) + tf.matmul(x, W_x) + b
+            # h = tf.nn.relu(h)
             h = tf.reshape(h, [self.hidden_layer_size], name='h')
         return h
 
@@ -222,7 +223,7 @@ def train(sess, model, optimizer, generator, num_optimization_steps,
     tf.summary.scalar('loss_ema', loss_ema)
 
     summary_op = tf.summary.merge_all()
-    summary_writer = tf.summary.FileWriter(logdir=logdir, graph=sess.graph)
+    # summary_writer = tf.summary.FileWriter(logdir=logdir, graph=sess.graph)
 
     sess.run(tf.global_variables_initializer())
     for step in xrange(num_optimization_steps):
@@ -230,19 +231,26 @@ def train(sess, model, optimizer, generator, num_optimization_steps,
         loss_ema_, summary, _, _ = sess.run(
             [loss_ema, summary_op, optimizer.optimize_op, update_loss_ema],
             {model.inputs: inputs, model.targets: targets})
-        summary_writer.add_summary(summary, global_step=step)
+        # summary_writer.add_summary(summary, global_step=step)
         print('\rStep %d. Loss EMA: %.6f.' % (step+1, loss_ema_), end='')
 
 
+tf.reset_default_graph()
 generator = input_target_generator()
 model = Model(
-        hidden_layer_size=256, input_size=1, target_size=1, init_scale=0.1)
+        hidden_layer_size=1, input_size=1, target_size=1, init_scale=0.1)
 optimizer = Optimizer(
         model.loss, initial_learning_rate=1e-2, num_steps_per_decay=15000,
         decay_rate=0.1, max_global_norm=1.0)
 
+import timeit
+start = timeit.default_timer()
 sess = tf.Session()
-train(sess, model, optimizer, generator, num_optimization_steps=45000)
+train(sess, model, optimizer, generator, num_optimization_steps=15000)
+end = timeit.default_timer()
+print((end - start), "sec")
+# 66.6315 sec  w/summaries
+# 60.0650 sec  w/o summaries
 
 
 def test_qualitatively(
@@ -272,3 +280,31 @@ def test_qualitatively(
 
 
 test_qualitatively(sess, model, generator, figsize=(8, 2))
+
+
+for v in tf.global_variables():
+    print(v.name)
+
+for v in tf.trainable_variables():
+    print(v.name)
+    print(sess.run(v))
+
+for op in sess.graph.get_operations():
+    print(op.name)
+
+var = sess.graph.get_tensor_by_name('model/predictions/W_pred:0')
+sess.run(var)
+
+tf.get_variable_scope()
+
+tf.verify_tensor_all_finite()
+
+tf.add_check_numerics_ops()
+
+fc1 = tf.nn.xw_plus_b(x, W, b)
+fc1 = tf.nn.relu(fc1)
+
+plt.matshow(sess.run(Wh))
+
+for summary in tf.train.summary_iterator('./tf_logs'):
+    print(summary)
