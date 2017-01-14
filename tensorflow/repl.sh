@@ -21,3 +21,11 @@ python ./mnist_with_summaries.py
 tensorboard --logdir=/tmp/tensorflow --verbose --reload_interval=1
 
 rm -rf ./tf_logs/*
+
+virtualenv-3.5 --verbose venv
+
+source venv/bin/activate
+
+pip install ipython tensorflow
+
+rm -rf ./venv
