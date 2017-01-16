@@ -26,6 +26,12 @@ virtualenv-3.5 --verbose venv
 
 source venv/bin/activate
 
-pip install ipython tensorflow
+pip install ipython tensorflow matplotlib pandas sklearn scipy
 
 rm -rf ./venv
+
+wget https://gist.githubusercontent.com/ilblackdragon/dfaefa3ac6097dbc27de/raw/31934e210685f590b883c3afb9ea70ca8bd3df29/titanic_categorical1.py
+
+wget https://raw.githubusercontent.com/ilblackdragon/tf_examples/master/data/titanic_train.csv
+
+ctags-exuberant -R --totals=yes --languages=python venv/
