@@ -35,3 +35,6 @@ wget https://gist.githubusercontent.com/ilblackdragon/dfaefa3ac6097dbc27de/raw/3
 wget https://raw.githubusercontent.com/ilblackdragon/tf_examples/master/data/titanic_train.csv
 
 ctags-exuberant -R --totals=yes --languages=python venv/
+
+git clone https://github.com/tensorflow/models.git
+

@@ -1,4 +1,5 @@
 data/
 tf_logs/
 venv/
+models/
 tags
