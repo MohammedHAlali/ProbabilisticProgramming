@@ -12,3 +12,9 @@ augroup lint-on-write
   " autocmd BufWrite * Neomake
   autocmd InsertLeave,TextChanged * update|Neomake
 augroup END
+
+autocmd BufEnter * sign define dummy
+autocmd BufEnter * execute 'sign place 9999 line=1 name=dummy buffer=' . bufnr('')
+
+
+nnoremap <buffer> ,s :SlimeSend1 <C-R><C-W>.shape<CR>
