@@ -34,7 +34,8 @@ for v in tf.global_variables():
 
 for v in tf.trainable_variables():
     print(v.name)
-    print(sess.run(v))
+    # print(sess.run(v))
 
 for op in sess.graph.get_operations():
     print(op.name)
+
