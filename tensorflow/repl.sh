@@ -26,7 +26,7 @@ virtualenv-3.5 --verbose venv
 
 source venv/bin/activate
 
-pip install ipython tensorflow matplotlib pandas sklearn scipy
+pip install --upgrade ipython tensorflow matplotlib pandas sklearn scipy
 
 rm -rf ./venv
 

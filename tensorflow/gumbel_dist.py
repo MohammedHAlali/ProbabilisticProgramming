@@ -1,23 +1,12 @@
 # <script src="https://gist.github.com/gngdb/ef1999ce3a8e0c5cc2ed35f488e19748.js"></script>
 # http://blog.evjang.com/2016/11/tutorial-categorical-variational.html
 
-import tensorflow as tf
-import numpy as np
-import matplotlib.pyplot as plt
-plt.ion()
 
 
-rng = np.random.RandomState(42)
 
-
-def gumbel(*args):
-    u = rng.rand(*args)
-    return -np.log(-np.log(u))
-
-
-dat = gumbel(10000)
-plt.clf()
-plt.hist(dat, 50)
+class GumbelDist():
+    def __init__():
+        pass
 
 
 def sample_gumbel(shape, eps=1e-20): 
