@@ -16,25 +16,6 @@ plt.clf()
 plt.hist(dat, 50)
 
 
-  def _sample_n(self, n, seed=None):
-    sample_shape = array_ops.concat(([n], array_ops.shape(self.logits)), 0)
-    logits = self.logits * array_ops.ones(sample_shape)
-    if logits.get_shape().ndims == 2:
-      logits_2d = logits
-    else:
-      logits_2d = array_ops.reshape(logits, [-1, self.num_classes])
-    np_dtype = self.dtype.as_numpy_dtype()
-    minval = np.nextafter(np_dtype(0), np_dtype(1))
-    uniform = random_ops.random_uniform(shape=array_ops.shape(logits_2d),
-                                        minval=minval,
-                                        maxval=1,
-                                        dtype=self.dtype,
-                                        seed=seed)
-    gumbel = - math_ops.log(- math_ops.log(uniform))
-    noisy_logits = math_ops.div(gumbel + logits_2d, self.temperature)
-    samples = nn_ops.log_softmax(noisy_logits)
-    ret = array_ops.reshape(samples, sample_shape)
-    return ret
 
 tf.reset_default_graph()
 sess = tf.InteractiveSession()
@@ -122,3 +103,27 @@ plt.matshow(theta, aspect=0.03, fignum=2, cmap='hot')
 
 writer = tf.summary.FileWriter("tf_logs/3", sess.graph)
 writer.close()
+
+
+#
+# as module
+
+%load_ext autoreload
+%autoreload 2
+
+from gumbel_dist import Concrete
+
+tf.reset_default_graph()
+sess = tf.InteractiveSession()
+cat = Concrete(5)
+s = cat.sample()
+
+init_op = tf.global_variables_initializer()
+sess.run(init_op)
+
+cat.logits.eval()
+
+s.eval()
+
+np.random.randn(4)
+

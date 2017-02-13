@@ -1,39 +1,42 @@
 # <script src="https://gist.github.com/gngdb/ef1999ce3a8e0c5cc2ed35f488e19748.js"></script>
 # http://blog.evjang.com/2016/11/tutorial-categorical-variational.html
+import tensorflow as tf
+import numpy as np
 
 
+class Concrete(object):
+    def __init__(self, number_of_classes, temperature=1.0, seed=None):
+        self.number_of_classes = number_of_classes
+        self.shape = (number_of_classes,)
+        with tf.variable_scope("Concrete"):
+            self.logits = tf.get_variable('logits', self.shape)
+            self.temperature = tf.identity(temperature, name="temperature")
+        self.dtype = tf.float32
+        self.seed = seed
 
+    def sample_gumbel(self):
+        """Sample from Gumbel(0, 1)"""
+        with tf.name_scope('gumbel'):
+            np_dtype = self.dtype.as_numpy_dtype
+            minval = np.nextafter(np_dtype(0), np_dtype(1))
+            uniform = tf.random_uniform(
+                    shape=self.shape,
+                    minval=minval,
+                    maxval=1,
+                    dtype=self.dtype,
+                    seed=self.seed)
+            gumbel = - tf.log(- tf.log(uniform))
+        return gumbel
 
-class GumbelDist():
-    def __init__():
-        pass
-
-
-def sample_gumbel(shape, eps=1e-20): 
-    """Sample from Gumbel(0, 1)"""
-    U = tf.random_uniform(shape,minval=0,maxval=1)
-    return -tf.log(-tf.log(U + eps) + eps)
-
-def gumbel_softmax_sample(logits, temperature): 
-    """ Draw a sample from the Gumbel-Softmax distribution"""
-    y = logits + sample_gumbel(tf.shape(logits))
-    return tf.nn.softmax( y / temperature)
-
-def gumbel_softmax(logits, temperature, hard=False):
-  """Sample from the Gumbel-Softmax distribution and optionally discretize.
-  Args:
-    logits: [batch_size, n_class] unnormalized log-probs
-    temperature: non-negative scalar
-    hard: if True, take argmax, but differentiate w.r.t. soft sample y
-  Returns:
-    [batch_size, n_class] sample from the Gumbel-Softmax distribution.
-    If hard=True, then the returned sample will be one-hot, otherwise it will
-    be a probabilitiy distribution that sums to 1 across classes
-  """
-    y = gumbel_softmax_sample(logits, temperature)
-    if hard:
-        k = tf.shape(logits)[-1]
-        #y_hard = tf.cast(tf.one_hot(tf.argmax(y,1),k), y.dtype)
-        y_hard = tf.cast(tf.equal(y,tf.reduce_max(y,1,keep_dims=True)),y.dtype)
-        y = tf.stop_gradient(y_hard - y) + y
-    return y
+    def sample(self):
+        with tf.name_scope('Concrete'):
+            gumbel = self.sample_gumbel()
+            noisy_logits = tf.div(gumbel + self.logits, self.temperature)
+            soft_onehot = tf.nn.softmax(noisy_logits)
+            argmax = tf.arg_max(soft_onehot, 0)
+            hard_onehot = tf.one_hot(argmax, self.number_of_classes)
+            stop_grad = tf.stop_gradient(hard_onehot - soft_onehot)
+            # h = h - s + s
+            differentiable_hard_onehot = tf.add(stop_grad, soft_onehot,
+                    name='onehot')
+        return differentiable_hard_onehot
