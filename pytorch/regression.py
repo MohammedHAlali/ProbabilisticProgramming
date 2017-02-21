@@ -44,6 +44,8 @@ def get_batch(batch_size=32):
 # Define model
 fc = torch.nn.Linear(W_target.size(0), 1)
 
+optimizer = torch.optim.SGD(fc.parameters(), lr=0.1, momentum=0.9)
+
 y_old = []
 x_old = []
 for batch_idx in count(1):
@@ -74,3 +76,34 @@ for batch_idx in count(1):
 print('Loss: {:.6f} after {} batches'.format(loss, batch_idx))
 print('==> Learned function:\t' + poly_desc(fc.weight.data.view(-1), fc.bias.data))
 print('==> Actual function:\t' + poly_desc(W_target.view(-1), b_target))
+
+#
+# optim
+fc = torch.nn.Linear(W_target.size(0), 1)
+
+optimizer = torch.optim.SGD(fc.parameters(), lr=0.001, momentum=0.9)
+
+optimizer = torch.optim.Adam(fc.parameters(), lr=0.1) 
+
+# Define model
+loss_hist = []
+idx_hist = []
+idx = 0
+
+for i in range(1000):
+    batch_x, batch_y = get_batch()
+    optimizer.zero_grad()
+    y_est = fc(batch_x)
+    output = F.smooth_l1_loss(y_est, batch_y)
+    loss = output.data[0]
+    output.backward()
+    optimizer.step()
+    print('{}: {}'.format(i, loss))
+    idx += 1
+    idx_hist.append(idx)
+    loss_hist.append(loss)
+
+plt.figure(1)
+plt.clf()
+plt.semilogy(idx_hist,loss_hist)
+plt.show()

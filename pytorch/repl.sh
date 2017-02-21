@@ -3,3 +3,5 @@ pip3 install --user --upgrade https://s3.amazonaws.com/pytorch/whl/cu75/torch-0.
 pip3 install --user --upgrade torchvision
 
 python3 regression.py
+
+ctags-exuberant -R --totals=yes --languages=python
