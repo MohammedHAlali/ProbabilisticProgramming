@@ -5,3 +5,5 @@ pip3 install --user --upgrade torchvision
 python3 regression.py
 
 ctags-exuberant -R --totals=yes --languages=python
+
+python3 vae.py
