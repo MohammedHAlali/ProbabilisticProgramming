@@ -5,3 +5,4 @@
 *.x
 *.rda
 *.hpp
+__pycache__/
