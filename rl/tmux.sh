@@ -16,6 +16,6 @@ else
     send-keys 'sqlite3 data.db' \; \
     new-window -n 'bash' \; \
     send-keys 'bash' C-m \; \
-    select-window -t 2
+    select-window -t 3
 fi
 
