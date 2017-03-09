@@ -6,3 +6,12 @@ augroup switchtmux-rl
 augroup END
 
 let g:slime_python_ipython = 1
+
+let s:efm  = '%G<ipython-%.%#,'
+let s:efm .= '%E%f in %.%#(%.%#),'
+let s:efm .= '%C---> %l %.%#,'
+let s:efm .= '%C     %.%#,'
+let s:efm .= '%C,'
+let s:efm .= '%Z%m'
+
+let &l:efm = s:efm
