@@ -3,7 +3,7 @@
 NAME=pytorch
 
 if tmux has-session -t $NAME; then
-  tmux kill-window -a -t $NAME:R
+  tmux kill-session -t $NAME
 else
   tmux new-session -A -s $NAME \; \
     send-keys 'R -q' C-m \; \
@@ -16,6 +16,6 @@ else
     send-keys 'sqlite3 data.db' \; \
     new-window -n 'bash' \; \
     send-keys 'bash' C-m \; \
-    select-window -t 2
+    select-window -t ipython
 fi
 
