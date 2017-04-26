@@ -111,7 +111,6 @@ class ReparamNormal(torch.nn.Module):
         log p(x|z) = -(x - mu)^2 / (2*var) - log(std) + C
         """
         lp = (x - self.mu).pow(2).mul(-0.5/self.var).add(-self.std.log())
-        lp = lp - 10*self.std.pow(2)
         return torch.sum(lp, 1)
 
     def logInvGamma(self):
