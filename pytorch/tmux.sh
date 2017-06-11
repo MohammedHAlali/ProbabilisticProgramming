@@ -11,11 +11,11 @@ else
     new-window -n 'julia' \; \
     send-keys 'while true;do julia;sleep 1;done' C-m \; \
     new-window -n 'ipython' \; \
-    send-keys 'ipython3 --no-banner' C-m \; \
+    send-keys 'jupyter-console --existing' C-m \; \
     new-window -n 'sqlite' \; \
     send-keys 'sqlite3 data.db' \; \
     new-window -n 'bash' \; \
-    send-keys 'bash' C-m \; \
+    send-keys 'jupyter-notebook' C-m \; \
     select-window -t ipython
 fi
 

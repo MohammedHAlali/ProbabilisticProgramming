@@ -7,3 +7,5 @@ python3 regression.py
 ctags-exuberant -R --totals=yes --languages=python
 
 python3 vae.py
+
+jupyter-notebook
