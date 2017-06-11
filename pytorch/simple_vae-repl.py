@@ -1,6 +1,8 @@
 # imports {{{
+%matplotlib
 import scipy
 import torch
+import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import pandas as pd
@@ -270,7 +272,7 @@ plt.hist(x,normed=True,alpha=0.5,bins=30)
 # }}}
 
 #
-# VAE {{{
+# VAE State {{{
 #
 vae = simple_vae.VAE()
 vae(X_var)
@@ -372,19 +374,20 @@ plt.ylabel('X1')
 plt.scatter(px_std[0], px_std[1])
 # }}}
 
-X_grid = torch.FloatTensor(np.dstack((xx,yy)).reshape(-1,2))
-X_grid = Variable(X_grid)
-vae.num_samples=100
-elbo = vae.ELBO(X_grid).data.numpy()
-elbo = elbo.reshape(xx.shape)
-plt.clf()
-plt.pcolormesh(xx,yy,np.exp(elbo), cmap='viridis')
-plt.scatter(X[0],X[1], color='r')
-x = vae.px.sample()
-x = x.data.numpy().T
-# plt.scatter(x[0],x[1])
-mu = vae.px.mu.data.numpy().T
-# plt.scatter(mu[0],mu[1])
+def plot_elbo_density():
+    X_grid = torch.FloatTensor(np.dstack((xx,yy)).reshape(-1,2))
+    X_grid = Variable(X_grid)
+    vae.num_samples=100
+    elbo = vae.ELBO(X_grid).data.numpy()
+    elbo = elbo.reshape(xx.shape)
+    plt.clf()
+    plt.pcolormesh(xx,yy,np.exp(elbo), cmap='viridis')
+    plt.scatter(X[0],X[1], color='r', marker='.')
+    x = vae.px.sample()
+    x = x.data.numpy().T
+    # plt.scatter(x[0],x[1])
+    mu = vae.px.mu.data.numpy().T
+    # plt.scatter(mu[0],mu[1])
 
 plt.clf()
 plt.hist(elbo.reshape(-1))
@@ -455,3 +458,424 @@ plt.clf()
 plt.plot(tau, gamma)
 
 # }}}
+
+# VAE Parameter {{{
+
+model = simple_vae.BarberExample2(10000,2)
+def plot_samples():
+    try:
+        z_samples = model.z.data.numpy().T
+    except AttributeError:
+        z_samples = model.sample()
+    plt.clf()
+    plot_generative()
+    plt.scatter(z_samples[0], z_samples[1], alpha=0.6)
+    plt.xlabel('mu')
+    plt.ylabel('logvar')
+    plt.title('qz')
+    # plt.xlim(-8,8)
+    # plt.ylim(-4,4)
+    mu, logvar =  torch.unbind(model.qz.mu, 1)
+    mu = mu.data.numpy()
+    logvar = logvar.data.numpy()
+    plt.scatter(mu, logvar, color='black', alpha=0.3)
+    plt.pause(0.01)
+plot_samples()
+
+plt.clf()
+z_samples = model.sample()
+sns.kdeplot(z_samples[0], z_samples[1], kind="kde", shade = True)
+
+aux_samples = model.aux_samples.data.numpy().T
+plt.clf()
+plt.scatter(aux_samples[0], aux_samples[1])
+
+plt.clf()
+plt.hist(aux_samples[0])
+plt.hist(aux_samples[1])
+
+
+plt.close()
+sns.jointplot(z_samples[0], z_samples[1], kind='hex')
+
+model = simple_vae.BarberExample2(1000,4)
+model.annealing = 0
+hist = []
+hist_lps_list = []
+optimizer = torch.optim.Adam(model.parameters()
+        , betas=(0.9,0.99)
+        , lr=0.001
+        , weight_decay=0.001)
+plot_samples()
+
+
+for epoch in range(500):
+    model.train(True)
+    optimizer.zero_grad()
+    elbo = model.ELBO()
+    if np.isnan(elbo.data[0]):
+        break
+    loss = -elbo
+    loss.backward()
+    optimizer.step()
+    model.train(False)
+    hist.append(loss.data[0])
+    print(epoch, loss.data[0])
+    lps = np.array([
+        model.px_logpdf(model.z).sum().data[0],
+        model.pa.logpdf(model.aux_samples).sum().data[0],
+        -model.qa.logpdf(model.aux_samples).sum().data[0],
+        -model.qz.logpdf(model.z).sum().data[0] 
+    ]) / model.num_samples
+    hist_lps_list.append(lps)
+    # plot_samples()
+hist_lps = np.array(hist_lps_list).T
+plt.clf()
+plt.plot(hist[:])
+
+plt.clf()
+plt.
+plt.hist(model.pa.mu.data.numpy().squeeze())
+plt.hist(model.pa.logvar.data.numpy().squeeze())
+
+plt.clf()
+plt.plot(hist_lps[0], lw=5, alpha=0.7, label='p(x|z)')
+plt.plot(hist_lps[1], lw=5, alpha=0.7, label='p(a|z)')
+plt.plot(hist_lps[2], lw=5, alpha=0.7, label='q(a)=N(0,I)')
+plt.plot(hist_lps[3], lw=5, alpha=0.7, label='$q(z|a)$')
+plt.legend()
+# plt.ylim(-20,5)
+
+
+
+plt.clf()
+plt.hist(model.qz.logvar.data.numpy())
+
+model.qz.mu_param
+
+model.qz.logvar_param
+
+model.pa.mu_param.data.numpy()
+
+model.pa.logvar_param.data.numpy()
+
+
+def generative(mu, logvar):
+    # logvar = logvar * np.log(10)
+    z = torch.FloatTensor([[mu, logvar]])
+    lp = model.generative(z)
+    return lp[0]
+generative(0,0)
+
+xx, yy = np.meshgrid(
+        np.linspace(-8, 4, 400),
+        np.linspace(-8, 4, 400))
+lp = [[generative(mu, logvar) 
+        for mu in xx[1]]
+        for logvar in yy[:,1]]
+lp = np.array(lp)
+nlp = lp - np.max(lp)
+pdf = np.exp(lp)
+pdf = pdf / np.max(pdf)
+lpr = nlp.reshape(-1)
+plot_generative()
+
+plt.clf()
+plt.hist(lpr, bins=200)
+# plt.hist(lpr[lpr>-20], bins=200)
+
+def plot_generative():
+    plt.clf()
+    # plt.contour(xx,yy,lp,np.linspace(-20,-6,20),cmap='viridis')
+    plt.contour(xx,yy,nlp*10**-model.annealing,np.linspace(-10,0,50),cmap='viridis')
+    plt.xlabel('mu')
+    plt.ylabel('logvar')
+plot_generative()
+
+plt.clf()
+plt.hist(np.exp(lpr[lpr>-20]))
+
+plt.clf()
+plt.imshow(np.exp(lp),cmap='viridis')
+plt.clim(0,0.0001)
+
+def lp_gaussian(x, mu, var):
+    x = torch.FloatTensor([x])
+    mu = torch.FloatTensor([mu])
+    var = torch.FloatTensor([var])
+    lp = model.logpdf_Gaussian( x, mu, var)
+    return lp[0]
+
+lp_gaussian(0,0,10)
+
+
+def plot_logpdf_Gaussian():
+    y2 = -6
+    logvar = np.arange(-4,4,0.05)
+    logprior = np.array([lp_gaussian(lv, 0, 1) for lv in logvar])
+    def plot_logvar(mu):
+        lp = np.array([lp_gaussian(y2, mu, np.exp(lv)) for lv in logvar])
+        plt.plot(logvar, lp+logprior, label='mu = {}'.format(mu))
+        plt.ylim(-20,3)
+    plt.clf()
+    plt.subplot(2,1,1)
+    plt.plot(logvar, logprior, label='prior', lw=5)
+    plot_logvar(0)
+    plot_logvar(-6)
+    plt.xlabel('logvar')
+    plt.legend()
+    mu = np.arange(-8,8,0.05)
+    logprior = np.array([lp_gaussian(m,0,1) for m in mu])
+    def plot_mu(var):
+        lp = np.array([lp_gaussian(y2, m, var) for m in mu])
+        lp = lp + logprior
+        plt.plot(mu, lp, label='var = {}'.format(var))
+        plt.ylim(-30,0)
+    plt.subplot(2,1,2)
+    plt.plot(mu, logprior, label='prior', lw=5)
+    plot_mu(0.1)
+    plot_mu(1.0)
+    plot_mu(10)
+    plt.xlabel('mu')
+    plt.legend()
+plot_logpdf_Gaussian()
+
+xx, yy = np.meshgrid(np.arange(-8.0,8,0.05),np.arange(-4,4,0.05))
+X_grid = torch.FloatTensor(np.dstack((xx,np.power(10,yy))).reshape(-1,2))
+X_grid = Variable(X_grid)
+
+%matplotlib
+def pdf_qar():
+    pdf = qar.logpdf(X_grid).data.numpy()
+    pdf = pdf.reshape(xx.shape)
+    plt.clf()
+    plt.pcolormesh(xx,yy,np.exp(pdf), cmap='viridis')
+pdf_qar()
+
+s = np.array([qar.sample().data[0].numpy() for _ in range(100)]).T
+plt.clf()
+plt.scatter(s[0], s[1])
+
+r_rng = np.linspace(-4,2,200)
+ig = [logpdf_IG(torch.FloatTensor([np.power(10,r)]),v,beta).numpy() for r in r_rng]
+ig = np.array(ig)
+rg = [logpdf_Gaussian(torch.FloatTensor([r]),-2.3,torch.FloatTensor([.15])).numpy() for r in r_rng]
+plt.clf()
+plt.scatter(r_rng, np.exp(ig))
+plt.scatter(r_rng, 300*np.exp(rg))
+
+
+a_rng = np.linspace(-8,8)
+mu_a = [logpdf_Gaussian(Variable(torch.FloatTensor([a])),0,q).data.numpy() for a in a_rng]
+mu_a = np.array(mu_a)
+plt.clf()
+plt.scatter(a_rng, mu_a)
+
+def log_prior(a, logr):
+    a = Variable(torch.FloatTensor([a]))
+    logr = Variable(torch.FloatTensor([logr]))
+    logr_var = Variable(torch.FloatTensor([0.1]))
+    lp = logpdf_Gaussian(a,0,q) + logpdf_Gaussian(logr,0,logr_var)
+    return lp.data[0]
+
+mesh = np.meshgrid(a_rng, np.exp(r_rng))
+lp = np.zeros_like(mesh[0])
+for i in range(a_rng.shape[0]):
+    for j in range(r_rng.shape[0]):
+        lp[j,i] = log_prior(a_rng[i], r_rng[j])
+
+plt.clf()
+plt.contour(mesh[0],mesh[1],lp,cmap='viridis')
+
+
+ig = simple_vae.InverseGamma()
+
+r_rng = np.logspace(-4,4,100)
+lp_ig = [ig.logpdf(r) for r in r_rng]
+plt.clf()
+plt.xscale('log')
+plt.plot(r_rng, lp_ig)
+
+
+def generative(self, mu, logvar):
+    y2 = -6
+    var = logvar.exp()
+    q = 1
+    lp = (self.logpdf_Gaussian(y2, mu, var)
+          + self.logpdf_Gaussian(mu, 0, q)
+          + ig.logpdf(var))
+    return lp
+
+num_samples = 100
+aux_dim = 20
+hidden_dim = 30
+output_dim = 2
+fc1 = torch.nn.Linear(aux_dim, hidden_dim)
+s = Variable(torch.randn((num_samples, aux_dim)))
+h = fc1(s)
+hr = torch.nn.functional.relu( h )
+fc2 = torch.nn.Linear(hidden_dim, output_dim, bias=False)
+fc3 = torch.nn.Linear(hidden_dim, output_dim, bias=False)
+out = fc2(hr)
+
+print(fc1.weight)
+print(fc1.bias)
+print(fc2.weight)
+print(fc2.bias)
+
+print(h)
+print(hr)
+
+out = fc2(hr)
+x,y = out.data.numpy().T
+sns.jointplot(x,y)
+
+plt.clf()
+plt.matshow(hr.data.numpy())
+
+plt.clf()
+plt.title('hidden layer')
+plt.subplot(2,1,1)
+plt.plot(h[:,0].data.numpy(), marker='o', lw=0)
+plt.plot(hr[:,0].data.numpy(), marker='.', lw=0)
+plt.xlabel('samples')
+plt.subplot(2,1,2)
+plt.plot(h[0,:].data.numpy(), marker='o', lw=0)
+plt.plot(hr[0,:].data.numpy(), marker='.', lw=0)
+plt.xlabel('hidden_dim')
+
+
+plt.clf()
+out = fc2(hr)
+x,y = out.data.numpy().T
+plt.scatter(x,y,marker='o', s=1000, facecolors='none', edgecolors='r')
+out = fc2(h)
+
+x,y = out.data.numpy().T
+plt.scatter(x,y,marker='o')
+out = []
+for i in range(hidden_dim):
+    idx = np.zeros(hidden_dim)
+    idx[i] = 1
+    fc3.weight.data = fc2.weight.data * torch.FloatTensor([idx,idx])
+    o = fc3(hr)
+    out.append(o)
+    x,y = o.data.numpy().T
+    plt.plot(x,y,marker='.')
+# x,y = (out[0] + out[4]).data.numpy().T
+# plt.scatter(x,y,marker='o', s=1000, facecolors='none', edgecolors='r')
+
+dmlp = simple_vae.DeepMLP(100)
+out = dmlp.sample()
+layer_var = []
+for idx, h in enumerate(dmlp.h):
+    var = h.data.numpy().var(0)
+    for v in var:
+        layer_var.append([idx, v])
+layer_var = np.array(layer_var)
+plt.clf()
+plt.scatter(*layer_var.T)
+plt.plot((0,len(dmlp.h)),(1,1), color='red')
+
+plt.clf()
+for i in range(len(dmlp.h)):
+    plt.subplot(len(dmlp.h),1,i+1)
+    plt.hist(dmlp.h[i].data.numpy(), bins=60)
+    plt.ylabel(i)
+    plt.xlim(-4,4)
+plt.tight_layout()
+
+
+
+N = 1000
+d = []
+for _ in range(1000):
+    y = np.random.randn(N)
+    x = F.elu(Variable(torch.Tensor(y))).data.numpy()
+    w = np.random.randn(N) * np.sqrt(2/(N*(1+.00)))
+    d.append(np.dot(x,w))
+np.array(d).var()
+
+
+
+dmlp.fc[3].bias
+
+
+
+ndist = simple_vae.ReparamNormal_MuLogvar()
+
+ndist(torch.zeros(10,2))
+
+ndist.condition(torch.zeros(10))
+
+ndist.sample()
+
+x = torch.zeros(3,10)
+
+torch.expand(ndist.mu_param,3)
+
+ndist.mu_param.expand(10)
+
+torch.ones(10).expand(10,2)
+
+def fucn(**kwargs):
+    mu = kwargs.get('mu', torch.zeros())
+
+torch.zeros(10).unsqueeze(0)
+
+x = torch.ones(4,3)
+
+x.mul_(torch.zeros(4,3)).add_(torch.ones(4,3))
+
+plt.clf()
+input_dim = 1
+hidden_dim = 10
+num_samples = 10000
+x = Variable(torch.randn(num_samples,input_dim))# {{{
+plt.subplot(411)
+plt.title('x')
+plt.hist(x.data.numpy(), bins=30)# }}}
+fc1 = torch.nn.Linear(input_dim, hidden_dim)# {{{
+fc1.bias.data = 0.5*torch.ones(hidden_dim) + 20.0*torch.randn(hidden_dim)
+fc1.weight.data = 10*torch.ones(hidden_dim,input_dim)
+h = fc1(x)
+plt.subplot(412)
+plt.title('fc(x)')
+plt.hist(h.data.numpy(), bins=30, stacked=True)# }}}
+h = F.sigmoid(h)# {{{
+plt.subplot(413)
+plt.title('tanh(h)')
+plt.hist(h.data.numpy(), bins=30)# }}}
+h = torch.sum(h,1)# {{{
+plt.subplot(414)
+plt.title('sum(h)')
+plt.hist(h.data.numpy(), bins=300)# }}}
+
+plt.clf()
+input_dim = 2
+hidden_dim = 10
+num_samples = 10000
+x = Variable(torch.randn(num_samples,input_dim))# {{{
+plt.subplot(411)
+plt.title('x')
+plt.scatter(*x.data.numpy().T,alpha=0.1)#}}}
+fc1 = torch.nn.Linear(input_dim, hidden_dim)# {{{
+fc1.bias.data = 0.5*torch.ones(hidden_dim) + 20.0*torch.randn(hidden_dim)
+fc1.weight.data *= 70 #*torch.ones(hidden_dim,input_dim)
+h = fc1(x)
+plt.subplot(412)
+plt.title('fc(x)')
+plt.hist(h.data.numpy())# }}}
+h = F.sigmoid(h)# {{{
+plt.subplot(413)
+plt.title('sigmoid(h)')
+plt.hist(h.data.numpy(), bins=30)# }}}
+fc2 = torch.nn.Linear(hidden_dim,input_dim)# {{{
+h = fc2(h)
+plt.subplot(414)
+plt.title('fc2(h)')
+sns.kdeplot(*h.data.numpy().T, kind="hex", shade = True)
+# plt.scatter(*h.data.numpy().T)# }}}
+
+
+# # }}}
