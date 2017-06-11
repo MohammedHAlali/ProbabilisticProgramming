@@ -5,7 +5,9 @@ augroup switchtmux-pytorch
   exe b:auBufEnter . '/* call functions#SwitchTmux("pytorch")'
 augroup END
 
-let g:slime_python_ipython = 1
+" let g:slime_python_ipython = 1
+" let g:slime_python_ipython = 0
+let g:slime_python_jupyter = 1
 
 augroup lint-on-change
   au!
