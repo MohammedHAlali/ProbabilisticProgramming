@@ -1,41 +1,89 @@
+%matplotlib notebook
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.nn import Parameter
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
-plt.ion()
+import matplotlib.gridspec
+%load_ext autoreload
+%autoreload 2
+import rnn
 
 
-#
-# simulation
-#
-l1 = torch.nn.Linear(2,2)
-l1.weight.data = torch.FloatTensor([[0, -1],[1, 0]])
-l1.bias.data[0] = 1.0
-l1.bias.data[1] = -1.0
+X_data = rnn.X_data.data.numpy()
 
-dt = 0.01
-TIMESTEPS=2000
-X = [Variable(torch.zeros(1,2)) for _ in range(TIMESTEPS)]
-X[0].data = torch.FloatTensor([[1,2]])
-for t in range(1, TIMESTEPS):
-    X[t] = X[t-1] + dt*X[t-1]*l1(X[t-1])
-x_data = torch.cat(X).data.numpy()
+plt.figure('data') # {{{
 plt.clf()
-plt.scatter(x_data[:,0], x_data[:,1], marker='.')
+plt.subplot(1,2,1)
+plt.scatter(X_data[:,0], X_data[:,1], marker='.')
+plt.xlabel('X1')
+plt.ylabel('X2')
+plt.subplot(2,2,2)
+plt.ylabel('X1')
+plt.plot(X_data[:,0])
+plt.subplot(2,2,4)
+plt.ylabel('X2')
+plt.plot(X_data[:,1])
+plt.tight_layout()
+# }}}
 
-plt.clf()
-plt.subplot(2,1,1)
-plt.plot(x_data[:,0])
-plt.subplot(2,1,2)
-plt.plot(x_data[:,1])
+loss_fn = torch.nn.MSELoss()
+
+model = rnn.ModelDynamics()
+print(model.W.bias.data)
+print(model.W.weight.data)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+
+X0 = rnn.X_data[:-1]
+X1 = rnn.X_data[1:]
+print(loss_fn(model(X0), X1).data[0])
+print(loss_fn(rnn.target_model(X0), X1).data[0])
+
+X_sim = rnn.simulate(model)
+
+fig = plt.figure('sim') # {{{
+fig.clear()
+ax = fig.gca()
+ax.plot(X_sim[:,0].data.numpy(), label='X1')
+ax.plot(X_sim[:,1].data.numpy(), label='X2')
+ax.set_ylim(0, 3)
+ax.legend(loc='upper left')
+fig.canvas.draw()
+fig.show()
+# }}}
+
+
+
+def plot_state(ax, idx):
+    ax.clear()
+    ax.plot(X_sim[:, idx], label='sim')
+    ax.plot(X_data[:, idx], label='data')
+    ax.set_ylim(0, 3)
+
+
+loss_history = []
+fig, axs = plt.subplots(3, 1, num='state-loss')
+
+for epoch in range(2000):
+    optimizer.zero_grad()
+    loss = loss_fn(model(X0), X1)
+    loss.backward()
+    optimizer.step() 
+    loss_history.append(loss.data[0])
+    X_sim = rnn.simulate(model).data.numpy()
+    plot_state(axs[0], 0)
+    plot_state(axs[1], 1)
+    axs[2].clear()
+    axs[2].semilogy(loss_history, marker='.', linewidth=0)
+    fig.canvas.draw()
 
 
 #
 # loss function
 #
-loss_fn = torch.nn.MSELoss()
+
+loss_fn(Variable(torch.ones(4,2)), Variable(torch.zeros(4,2)))
 
 loss_fn.forward
 
@@ -186,7 +234,7 @@ for epoch in range(500):
     optimizer.zero_grad()
     F = model()
     lossD = torch.pow(model.X[1:,:] - F[:-1,:], 2)
-    lossD = torch.sum(lossD)
+    lossD = 1000*torch.sum(lossD)
     lossF = torch.pow(model.X[:,0] - x_data_v, 2)
     lossF = torch.sum(lossF)
     # lossD = loss_fn(model.X[1:,:], F[:-1,:])
@@ -219,3 +267,45 @@ for epoch in range(500):
     model.l1.bias.data.numpy().flatten()
 
 model.X[0,1].data[0] = 2.5
+
+
+
+
+for i in range(10):
+    plt.clf()
+    plt.plot([4,-i,2])
+    plt.gcf().canvas.draw()
+
+
+
+#
+# linear regression y = x^2 {{{
+batch_size = 1
+num_samples = 100
+input = Variable(torch.randn(batch_size, num_samples))
+target = input**2
+
+fig = plt.figure(1)
+fig.clear()
+ax = fig.gca()
+ax.set_title("")
+ax.set_xlabel("input")
+ax.set_ylabel("target")
+ax.set_xlim(auto=True)
+ax.set_ylim(auto=True)
+ax.scatter( input.squeeze(0).data.numpy(), target.squeeze(0).data.numpy() , label=''  , color='red' )
+ax.legend(loc='upper left')
+fig.canvas.draw()
+fig.show()
+
+W = torch.nn.Linear(10,1)
+
+W(input)
+
+d = torch.nn.Dropout
+
+m = torch.nn.Dropout(p=0.99)
+input = Variable(torch.randn(7,7))
+output = m(input)
+output
+# }}}

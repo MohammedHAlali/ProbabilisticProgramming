@@ -48,15 +48,57 @@ class Model(torch.nn.Module):
         super().__init__()
         self.dt = 0.01
         self.TIMESTEPS = TIMESTEPS
-        self.l1 = torch.nn.Linear(2, 2)
-        self.l1.bias.data *= 1e-3
-        self.l1.weight.data *= 1e-3
+        self.W = torch.nn.Linear(2, 2)
         self.X = Parameter(torch.ones(self.TIMESTEPS, 2))
         self.ic = Variable(torch.FloatTensor([[1, 2]]))
 
-    def dynamics(dt, l1, X):
-        return X + dt*X*l1(X)
+    def dynamics(dt, W, X):
+        return X + dt*X*W(X)
 
     def forward(self):
-        F = Model.dynamics(self.dt, self.l1, self.X)
+        F = Model.dynamics(self.dt, self.W, self.X)
         return F
+
+
+class ModelDynamics(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dt = 0.01
+        self.W = torch.nn.Linear(2, 2)
+        self.ic = Variable(torch.FloatTensor([[1, 2]]))
+
+    @staticmethod
+    def dynamics(dt, W, X):
+        return X + dt*X*W(X)
+
+    def forward(self, X):
+        F = ModelDynamics.dynamics(self.dt, self.W, X)
+        return F
+
+
+#
+# simulation
+#
+dt = 0.01
+TIMESTEPS = 2000
+
+target_model = ModelDynamics()
+target_model.W.bias.data[0] = 1.0
+target_model.W.bias.data[1] = -1.0
+target_model.W.weight.data = torch.FloatTensor([[0, -1], [1, 0]])
+
+
+def simulate(model):
+    X = [Variable(torch.zeros(1, 2), requires_grad=False)
+         for _ in range(TIMESTEPS)]
+    X[0].data = torch.FloatTensor([[1, 2]])
+    for t in range(1, TIMESTEPS):
+        X[t] = model(X[t-1])
+    X = torch.cat(X).detach()
+    return X
+
+
+X_data = simulate(target_model)
+
+
+print('**************************************************************Reloaded')
