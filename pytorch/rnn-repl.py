@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
-import matplotlib.gridspec
+plt.rcParams['figure.figsize'] = (10.0, 10.0)
 %load_ext autoreload
 %autoreload 2
 import rnn
@@ -78,18 +78,93 @@ for epoch in range(2000):
     axs[2].semilogy(loss_history, marker='.', linewidth=0)
     fig.canvas.draw()
 
-
 #
-# loss function
+# hidden x_0 state
 #
+V0 = rnn.X_data[:-1,1].unsqueeze(1)
+V1 = rnn.X_data[1:,1]
 
-loss_fn(Variable(torch.ones(4,2)), Variable(torch.zeros(4,2)))
+H = Parameter(0.01*torch.randn(rnn.TIMESTEPS)+1.)
+h0 = H[:-1].unsqueeze(1)
+h1 = H[1:]
+model = rnn.ModelDynamics()
+model.W.bias.data = rnn.target_model.W.bias.data
+model.W.weight.data = rnn.target_model.W.weight.data
+print(model.W.bias.data)
+print(model.W.weight.data)
+optimizer = torch.optim.SGD([
+    {'params': model.parameters(), 'lr': 0.},
+    {'params': H, 'lr': 1.01}])
+loss_history = []
+loss_visible_history = []
+loss_hidden_history = []
 
-loss_fn.forward
+fig, axs = plt.subplots(4, 1, num='state-loss')
 
-getattr(loss_fn._backend, type(loss_fn).__name__)
+fig.clear()
 
-torch.nn._functions.thnn.auto.MSELoss
+V0[200]
+
+    idx = 200
+    h0.data[idx] = 2.0
+    X0 = torch.cat((h0, V0), 1)
+    X1_model = model(X0)
+    print('X1: ', X1_model.data[idx,0], X1_model.data[idx,1])
+    print('h1: ', h1.data[idx])
+    print('V1: ', V1.data[idx])
+    d_hidden = (X1_model[:,0] - h1)**2
+    d_visible = (X1_model[:,1] - V1)**2
+    print('dH: ', d_hidden.data[idx])
+    print('dV: ', d_visible.data[idx])
+
+H.grad[1:10] * optimizer.param_groups[1]['lr']
+
+for epoch in range(4000):
+    optimizer.zero_grad()
+    H.data[0] = 1.0
+    X0 = torch.cat((h0, V0), 1)
+    X1_model = model(X0)
+    d_hidden = (X1_model[:,0] - h1)**2
+    d_visible = (X1_model[:,1] - V1)**2
+    loss_hidden = torch.sum(d_hidden) * 0 / rnn.TIMESTEPS
+    loss_visible = torch.sum(d_visible) * 1 / rnn.TIMESTEPS
+    loss = loss_visible + loss_hidden
+    loss.backward()
+    H.grad.data[0] = 0.0
+    # __import__('IPython.core.debugger').core.debugger.set_trace()
+    optimizer.step()
+    loss_history.append(loss.data[0])
+    loss_visible_history.append(loss_visible.data[0])
+    loss_hidden_history.append(loss_hidden.data[0])
+    if epoch % 10 != 0:
+        continue
+    X_sim = rnn.simulate(model).data.numpy()
+    axs[0].clear()
+    axs[0].set_ylim(0, 3)
+    axs[0].plot(X_sim[:, 0], label='sim')
+    axs[0].plot(rnn.X_data[:, 0].data.numpy(), label='data')
+    axs[0].plot(np.arange(1,rnn.TIMESTEPS),X1_model[:,0].data.numpy(), label='model', linewidth=4, linestyle='--')
+    axs[0].plot(H.data.numpy(), label='colloc')
+    axs[0].legend()
+    axs[1].clear()
+    axs[1].set_ylim(0, 3)
+    axs[1].plot(X_sim[:, 1], label='sim')
+    axs[1].plot(rnn.X_data[:, 1].data.numpy(), label='data')
+    axs[1].plot(X1_model[:,1].data.numpy(), label='model', linestyle='--')
+    axs[1].legend()
+    axs[2].clear()
+    axs[2].semilogy(loss_visible_history, marker='.', linewidth=0, label='visible')
+    axs[2].semilogy(loss_hidden_history, marker='.', linewidth=0, label='hidden')
+    axs[2].semilogy(loss_history, marker='o', linewidth=0, label='loss')
+    axs[2].legend()
+    axs[3].clear()
+    axs[3].set_ylim(-0.0001, 0.0003)
+    axs[3].plot(d_visible.data.numpy(), label='visible')
+    axs[3].plot(d_hidden.data.numpy(), label='hidden')
+    axs[3].legend()
+    fig.canvas.draw() 
+
+
 
 #
 # Learning

@@ -80,7 +80,7 @@ class ModelDynamics(torch.nn.Module):
 # simulation
 #
 dt = 0.01
-TIMESTEPS = 2000
+TIMESTEPS = 500
 
 target_model = ModelDynamics()
 target_model.W.bias.data[0] = 1.0
