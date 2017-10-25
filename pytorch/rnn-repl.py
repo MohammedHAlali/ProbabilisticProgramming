@@ -1,4 +1,6 @@
-%matplotlib notebook
+# imports {{{
+%matplotlib notebook 
+import math
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -9,8 +11,10 @@ plt.rcParams['figure.figsize'] = (10.0, 10.0)
 %load_ext autoreload
 %autoreload 2
 import rnn
+fig, axs = plt.subplots(5, 1, num='state-loss')
+# }}}
 
-
+# unknown params, visible states  {{{
 X_data = rnn.X_data.data.numpy()
 
 plt.figure('data') # {{{
@@ -77,93 +81,238 @@ for epoch in range(2000):
     axs[2].clear()
     axs[2].semilogy(loss_history, marker='.', linewidth=0)
     fig.canvas.draw()
+# }}}
+
+# single hidden state, single time step {{{
+p = []
+p.append((x0, loss.data[0]))
+p = np.array(p).T
+axs[0].clear()
+axs[0].plot(p[0], p[1])
+
+
+model = rnn.ModelDynamics()
+x0 = Parameter(torch.Tensor([0.5]))
+v0 = Variable(torch.Tensor([1.9]))
+optimizer = torch.optim.Adam([x0], lr=0.01)
+
+for _ in range(1000):
+    optimizer.zero_grad()
+    X0 = torch.cat((x0,v0)).unsqueeze(0)
+    X1 = model(X0)
+    loss = (X1[0,1] - (v0+0.01))**2
+    print(loss.data[0])
+    loss.backward()
+    optimizer.step()
+
+    print(X0[0].data.numpy())
+    print(X1[0].data.numpy())
+
+# }}}
 
 #
 # hidden x_0 state
-#
-V0 = rnn.X_data[:-1,1].unsqueeze(1)
-V1 = rnn.X_data[1:,1]
-
-H = Parameter(0.01*torch.randn(rnn.TIMESTEPS)+1.)
-h0 = H[:-1].unsqueeze(1)
-h1 = H[1:]
+# {{{
+X0 = torch.randn(rnn.TIMESTEPS,2)
+X0 = Parameter(0.5*X0+1.)
 model = rnn.ModelDynamics()
-model.W.bias.data = rnn.target_model.W.bias.data
-model.W.weight.data = rnn.target_model.W.weight.data
+model.W.bias.data.copy_(rnn.target_model.W.bias.data)
+model.W.weight.data.copy_(rnn.target_model.W.weight.data)
 print(model.W.bias.data)
 print(model.W.weight.data)
 optimizer = torch.optim.SGD([
     {'params': model.parameters(), 'lr': 0.},
-    {'params': H, 'lr': 1.01}])
+    {'params': X0, 'lr': 0.03}])
 loss_history = []
 loss_visible_history = []
 loss_hidden_history = []
 
-fig, axs = plt.subplots(4, 1, num='state-loss')
+fig, axs = plt.subplots(5, 1, num='state-loss')
 
 fig.clear()
 
-V0[200]
+optimizer.param_groups[1]['lr'] = 100.
 
-    idx = 200
-    h0.data[idx] = 2.0
-    X0 = torch.cat((h0, V0), 1)
-    X1_model = model(X0)
-    print('X1: ', X1_model.data[idx,0], X1_model.data[idx,1])
-    print('h1: ', h1.data[idx])
-    print('V1: ', V1.data[idx])
-    d_hidden = (X1_model[:,0] - h1)**2
-    d_visible = (X1_model[:,1] - V1)**2
-    print('dH: ', d_hidden.data[idx])
-    print('dV: ', d_visible.data[idx])
 
-H.grad[1:10] * optimizer.param_groups[1]['lr']
-
-for epoch in range(4000):
+for epoch in range(40):
     optimizer.zero_grad()
-    H.data[0] = 1.0
-    X0 = torch.cat((h0, V0), 1)
+    X0.data[0,0] = 1.0
+    X0.data[0,1] = 2.0
     X1_model = model(X0)
-    d_hidden = (X1_model[:,0] - h1)**2
-    d_visible = (X1_model[:,1] - V1)**2
-    loss_hidden = torch.sum(d_hidden) * 0 / rnn.TIMESTEPS
-    loss_visible = torch.sum(d_visible) * 1 / rnn.TIMESTEPS
-    loss = loss_visible + loss_hidden
+    d_hidden = (X1_model[:-1] - X0[1:])**2
+    d_visible  = (X1_model[:-1,1] - rnn.X_data[:-1,1])**2
+    d_visible2 = (rnn.X_data[:,1] - X0[:,1])**2
+    loss_hidden = torch.sum(d_hidden) * 1
+    loss_visible = torch.sum(d_visible) * 1
+    loss = loss_visible + 0*loss_hidden + 0*torch.sum(d_visible2)
+    if math.isnan(loss.data[0]):
+        raise ValueError('loss is NaN at {}'.format(epoch))
+        break
     loss.backward()
-    H.grad.data[0] = 0.0
+    X0.grad.data[0,0] = 0.0
+    X0.grad.data[0,1] = 0.0
     # __import__('IPython.core.debugger').core.debugger.set_trace()
     optimizer.step()
     loss_history.append(loss.data[0])
     loss_visible_history.append(loss_visible.data[0])
     loss_hidden_history.append(loss_hidden.data[0])
-    if epoch % 10 != 0:
+    if epoch % 1 != 0:
         continue
     X_sim = rnn.simulate(model).data.numpy()
-    axs[0].clear()
-    axs[0].set_ylim(0, 3)
-    axs[0].plot(X_sim[:, 0], label='sim')
-    axs[0].plot(rnn.X_data[:, 0].data.numpy(), label='data')
-    axs[0].plot(np.arange(1,rnn.TIMESTEPS),X1_model[:,0].data.numpy(), label='model', linewidth=4, linestyle='--')
-    axs[0].plot(H.data.numpy(), label='colloc')
-    axs[0].legend()
-    axs[1].clear()
-    axs[1].set_ylim(0, 3)
-    axs[1].plot(X_sim[:, 1], label='sim')
-    axs[1].plot(rnn.X_data[:, 1].data.numpy(), label='data')
-    axs[1].plot(X1_model[:,1].data.numpy(), label='model', linestyle='--')
-    axs[1].legend()
+    for i in [0,1]:
+        axs[i].clear()
+        axs[i].set_ylim(0, 3)
+        axs[i].plot(X_sim[:, i], label='sim')
+        axs[i].plot(rnn.X_data[:, i].data.numpy(), label='data')
+        axs[i].plot(np.arange(1,rnn.TIMESTEPS+1),X1_model[:,i].data.numpy(),
+                    label='model', marker='.', linewidth=0, linestyle='')
+        axs[i].plot(X0.data[:,i].numpy(), label='colloc', marker='.', linewidth=0)
+        axs[i].legend()
     axs[2].clear()
     axs[2].semilogy(loss_visible_history, marker='.', linewidth=0, label='visible')
     axs[2].semilogy(loss_hidden_history, marker='.', linewidth=0, label='hidden')
-    axs[2].semilogy(loss_history, marker='o', linewidth=0, label='loss')
+    axs[2].semilogy(loss_history, marker='o', linewidth=0, label='loss',
+                    alpha=0.5)
     axs[2].legend()
     axs[3].clear()
-    axs[3].set_ylim(-0.0001, 0.0003)
-    axs[3].plot(d_visible.data.numpy(), label='visible')
-    axs[3].plot(d_hidden.data.numpy(), label='hidden')
+    # axs[3].set_ylim(-0.0001, 0.003)
+    axs[3].plot(d_visible.data.numpy(), label='d_visible', marker='.', linestyle='')
+    axs[3].plot(d_hidden.data.numpy(), label='d_hidden', marker='.', linestyle='')
     axs[3].legend()
+    axs[4].clear()
+    axs[4].plot(X0.grad.data.numpy() * optimizer.param_groups[1]['lr'],
+                marker='.', linestyle='', label='X0.grad')
+    axs[4].legend()
     fig.canvas.draw() 
 
+
+
+# }}}
+
+#
+# shooting
+# {{{
+
+fig, axs = plt.subplots(5, 1, num='state-loss')
+
+visible = rnn.X_data[:,1]
+
+model = rnn.ModelDynamics()
+model.W.bias.data.copy_(rnn.target_model.W.bias.data + 0.01*torch.randn(2))
+model.W.weight.data.copy_(rnn.target_model.W.weight.data + 0.1*torch.randn(2,2))
+print(model.W.bias.data)
+print(model.W.weight.data)
+optimizer = torch.optim.Adam([
+    {'params': model.parameters(), 'lr': 0.001}
+])
+loss_history = []
+
+
+
+
+for epoch in range(401):
+    optimizer.zero_grad()
+    loss = 0
+    hidden = model.ic
+    for t in range(rnn.TIMESTEPS-1):
+        hidden = torch.cat((hidden[0,0], visible[t]),0).unsqueeze(0)
+        hidden = model(hidden)
+        loss += torch.abs(hidden[0,1] - visible[t+1])
+    print(loss.data[0])
+    if not math.isfinite(loss.data[0]):
+        raise ValueError('loss is NaN at epoch = {}'.format(epoch))
+        break
+    loss.backward()
+    optimizer.step()
+    loss_history.append(loss.data[0])
+    if epoch % 1 != 0:
+        continue
+    X_sim = rnn.simulate(model).data.numpy()
+    for i in [0,1]:
+        axs[i].clear()
+        axs[i].set_ylim(0, 3)
+        axs[i].plot(X_sim[:, i], label='sim')
+        axs[i].plot(rnn.X_data[:, i].data.numpy(), label='data')
+        axs[i].legend()
+    axs[2].clear()
+    axs[2].semilogy(loss_history, marker='.', linewidth=0, label='loss', alpha=0.5)
+    axs[2].legend()
+    axs[3].clear()
+    axs[3].legend()
+    axs[4].clear()
+    fig.canvas.draw() 
+
+loss = 0
+hidden = model.ic
+for t in range(rnn.TIMESTEPS):
+    hidden = model(hidden)
+    loss += (hidden[0,1] - rnn.X_data[t,1])**2
+loss.backward()
+
+# }}}
+
+# ModelHidden
+# {{{
+
+V0 = rnn.X_data[:-1,1]
+V1 = rnn.X_data[1:,1]
+model = rnn.ModelHidden()
+optimizer = torch.optim.Adam(model.parameters())
+loss_history = []
+loss_visible_history = []
+loss_hidden_history = []
+param_history = []
+
+optimizer.param_groups[0]['lr'] = 1e-4
+
+for epoch in range(20001):
+    optimizer.zero_grad()
+    h1, v1 = model(V0)
+    d_v1 = (V1 - v1)**2
+    d_h = (h1[:-1] - model.h0[1:])**2
+    loss_visible = torch.sum(d_v1)
+    loss_hidden = torch.sum(d_h)
+    loss = loss_visible + loss_hidden
+    loss_history.append(loss.data[0])
+    loss_visible_history.append(loss_visible.data[0])
+    loss_hidden_history.append(loss_hidden.data[0])
+    param_history.append(model.model.W.weight.data.numpy().flatten())
+    loss.backward()
+    optimizer.step()
+    print(epoch, loss.data[0])
+    if loss.data[0] < 1e-12:
+        break
+    if not math.isfinite(loss.data[0]):
+        raise ValueError('loss is NaN at epoch = {}'.format(epoch))
+        break
+    if epoch % 100 != 0:
+        continue
+    X_sim = rnn.simulate(model.model).data.numpy()
+    for i in range(5):
+        axs[i].clear()
+    for i in range(2):
+        axs[i].set_ylim(0,3)
+        axs[i].plot(rnn.X_data[:,i].data.numpy(), label='data', linewidth=3)
+        axs[i].plot(X_sim[:, i], label='sim')
+    style_model = {'label':'model', 'marker':'.', 'linestyle':'', 'markersize':1}
+    axs[0].plot(model.h0.data.numpy(), **style_model)
+    axs[0].plot(h1.data.numpy(), **style_model)
+    axs[1].plot(v1.data.numpy(), **style_model)
+    axs[2].semilogy(loss_history, marker='.', linewidth=0, label='loss', alpha=0.5)
+    axs[2].semilogy(loss_visible_history, marker='.', linewidth=0, label='visible', alpha=0.5)
+    axs[2].semilogy(loss_hidden_history, marker='.', linewidth=0, label='hidden', alpha=0.5)
+    axs[3].plot(d_v1.data.numpy(), label='d_v1')
+    axs[3].plot(d_h.data.numpy(), label='d_h', marker='.', linestyle='', markersize=1)
+    for i in range(5):
+        axs[i].legend()
+    fig.canvas.draw()
+
+torch.sum(d_h)
+
+model.model.W.bias
+
+
+# }}}
 
 
 #

@@ -76,11 +76,24 @@ class ModelDynamics(torch.nn.Module):
         return F
 
 
+class ModelHidden(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = ModelDynamics()
+        self.h0 = Parameter(torch.randn(TIMESTEPS-1)+1)
+
+    def forward(self, v0):
+        X0 = torch.stack((self.h0, v0), 1)
+        X1 = self.model(X0)
+        h1, v1 = torch.unbind(X1, 1)
+        return h1, v1
+
+
 #
 # simulation
 #
 dt = 0.01
-TIMESTEPS = 500
+TIMESTEPS = 2000
 
 target_model = ModelDynamics()
 target_model.W.bias.data[0] = 1.0
